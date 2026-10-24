@@ -1,0 +1,37 @@
+[
+  {
+    "attemptedAt": "2026-10-24T03:53:00Z",
+    "target": "https://sweetsbyshee.com/",
+    "method": "curl via session egress proxy",
+    "result": "blocked",
+    "detail": "CONNECT tunnel failed, response 403 — host not allowed by this environment's network policy (also www.sweetsbyshee.com)."
+  },
+  {
+    "attemptedAt": "2026-10-24T03:54:00Z",
+    "target": "https://sweetsbyshee.com/ and https://www.sweetsbyshee.com/",
+    "method": "WebFetch tool",
+    "result": "failed",
+    "detail": "getaddrinfo ENOTFOUND. The same tool also failed for example.com and archive.org, so this does not prove the domain is down."
+  },
+  {
+    "attemptedAt": "2026-10-24T03:55:00Z",
+    "target": "web.archive.org snapshot index for sweetsbyshee.com",
+    "method": "WebFetch tool",
+    "result": "failed",
+    "detail": "Tool refused / DNS failure."
+  },
+  {
+    "attemptedAt": "2026-10-24T03:55:00Z",
+    "target": "Search engines: \"Sweets by Shee\", sweetsbyshee.com, sweetsbyshee social profiles",
+    "method": "WebSearch",
+    "result": "no matches",
+    "detail": "No indexed pages for the domain or the business name; only unrelated bakeries with similar names. None of that content was used."
+  },
+  {
+    "attemptedAt": "2026-10-24T04:44:00Z",
+    "target": "https://sweetsbyshee.com/",
+    "method": "pnpm audit:crawl (Node fetch via proxy)",
+    "result": "blocked",
+    "detail": "Request cancelled by the egress proxy. Crawler exited cleanly with code 2."
+  }
+]

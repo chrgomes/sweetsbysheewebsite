@@ -26,7 +26,8 @@
     "migrate:assets": "tsx scripts/migration/download-assets.ts",
     "migrate:normalize": "tsx scripts/migration/normalize.ts",
     "migrate:redirects": "tsx scripts/migration/build-redirects.ts",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "audit:perf": "tsx scripts/audit/perf.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.4",
