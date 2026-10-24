@@ -1,0 +1,47 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { logout } from "@/app/admin/actions/auth";
+import { AdminNav } from "@/components/admin/nav";
+import { requireAdmin } from "@/lib/auth/session";
+
+export const metadata: Metadata = { title: { default: "Admin", template: "%s | Admin" }, robots: { index: false, follow: false } };
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const admin = await requireAdmin();
+  const items = [
+    { href: "/admin", label: "Dashboard" },
+    { href: "/admin/orders", label: "Orders" },
+    { href: "/admin/inquiries", label: "Custom requests" },
+    { href: "/admin/products", label: "Products" },
+    { href: "/admin/categories", label: "Categories" },
+    { href: "/admin/content", label: "Site content" },
+    { href: "/admin/account", label: "My account" },
+    ...(admin.role === "owner"
+      ? [
+          { href: "/admin/settings", label: "Settings" },
+          { href: "/admin/users", label: "Team" },
+          { href: "/admin/audit", label: "Activity log" },
+        ]
+      : []),
+  ];
+  return (
+    <div className="min-h-dvh bg-cream lg:grid lg:grid-cols-[15rem_1fr]">
+      <aside className="border-b border-line bg-paper lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-b-0">
+        <div className="flex items-center justify-between px-5 py-4 lg:block lg:py-6">
+          <Link href="/admin" className="font-display text-xl text-ink">Sweets by Shee</Link>
+          <Link href="/" className="text-xs text-ink-muted hover:text-berry lg:mt-1 lg:block">View site ↗</Link>
+        </div>
+        <AdminNav items={items} />
+        <div className="hidden border-t border-line px-5 py-4 text-xs text-ink-muted lg:absolute lg:bottom-0 lg:block lg:w-full">
+          <p className="truncate">{admin.name}</p>
+          <p className="truncate">{admin.email} · {admin.role}</p>
+          <form action={logout} className="mt-2"><button className="text-berry hover:underline">Sign out</button></form>
+        </div>
+      </aside>
+      <div className="min-w-0 px-4 py-8 sm:px-8 lg:px-12">
+        {children}
+        <form action={logout} className="mt-12 lg:hidden"><button className="text-sm text-berry hover:underline">Sign out ({admin.email})</button></form>
+      </div>
+    </div>
+  );
+}

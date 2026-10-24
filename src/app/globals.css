@@ -1,26 +1,130 @@
 @import "tailwindcss";
 
+/*
+ * Sweets by Shee design tokens.
+ * Warm, editorial palette: cream paper, cocoa ink, a berry accent for actions,
+ * and blush/honey tints for quiet emphasis. Re-theme here once the owner's
+ * brand assets are migrated; components only reference these tokens.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --cream: #fbf6ef;
+  --paper: #fffdf9;
+  --ink: #2a1c17;
+  --ink-soft: #5f4c44;
+  --ink-muted: #7a665d;
+  --line: #e8dccf;
+  --line-strong: #d6c4b2;
+  --berry: #8e3b46;
+  --berry-deep: #722e38;
+  --blush: #f4e1dc;
+  --honey: #b98a4b;
+  --honey-tint: #f5ead9;
+  --sage: #5f7058;
+  --sage-tint: #e6ebe1;
+  --danger: #a12a2a;
+  --danger-tint: #fbe9e7;
+  --focus: #1d4ed8;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-cream: var(--cream);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-berry: var(--berry);
+  --color-berry-deep: var(--berry-deep);
+  --color-blush: var(--blush);
+  --color-honey: var(--honey);
+  --color-honey-tint: var(--honey-tint);
+  --color-sage: var(--sage);
+  --color-sage-tint: var(--sage-tint);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 1.25rem;
+  --shadow-soft: 0 1px 2px rgb(42 28 23 / 0.04), 0 8px 24px -12px rgb(42 28 23 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(42 28 23 / 0.05), 0 18px 40px -18px rgb(42 28 23 / 0.25);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 6rem;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+}
+
+/* In the base layer so utilities like font-sans can override it. */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
+  }
+}
+
+.font-display {
+  font-optical-sizing: auto;
+  letter-spacing: -0.015em;
+}
+
+::selection {
+  background: var(--blush);
+  color: var(--ink);
+}
+
+/* Visible, consistent keyboard focus everywhere. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Restrained reveal used on a few homepage sections. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Body copy from the CMS: comfortable measure and rhythm. */
+.prose-bakery p {
+  margin-block: 0 1.1em;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+
+.prose-bakery p:last-child {
+  margin-bottom: 0;
 }

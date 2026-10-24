@@ -48,3 +48,4 @@ next-env.d.ts
 /screenshots/tmp/
 !.env.example
 /storage-test/
+/storage-e2e/

@@ -18,9 +18,9 @@
     "db:stop": "./scripts/dev/db.sh stop",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/db/migrate.ts",
-    "db:seed": "tsx --conditions=react-server scripts/migration/import-content.ts",
-    "db:seed:demo": "tsx --conditions=react-server scripts/db/seed-demo.ts",
-    "admin:create": "tsx --conditions=react-server scripts/db/create-admin.ts",
+    "db:seed": "tsx scripts/migration/import-content.ts",
+    "db:seed:demo": "tsx scripts/db/seed-demo.ts",
+    "admin:create": "tsx scripts/db/create-admin.ts",
     "audit:crawl": "tsx scripts/audit/crawl.ts",
     "audit:screenshots": "tsx scripts/audit/screenshots.ts",
     "migrate:assets": "tsx scripts/migration/download-assets.ts",
@@ -29,8 +29,6 @@
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
-    "@fontsource-variable/fraunces": "^5.3.0",
-    "@fontsource-variable/inter": "^5.3.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.3",
     "postgres": "^3.4.9",

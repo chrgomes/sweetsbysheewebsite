@@ -24,11 +24,11 @@ case "${1:-start}" in
     if ! as_pg "$PGBIN/pg_ctl -D '$PGDATA_DIR' status" >/dev/null 2>&1; then
       as_pg "$PGBIN/pg_ctl -D '$PGDATA_DIR' -o '-p $PGPORT -k /tmp -c listen_addresses=127.0.0.1' -l '$PGDATA_DIR/server.log' -w start" >/dev/null
     fi
-    for db in sweets sweets_test; do
+    for db in sweets sweets_test sweets_e2e; do
       psql -h 127.0.0.1 -p "$PGPORT" -U "$PGUSER_LOCAL" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
         || psql -h 127.0.0.1 -p "$PGPORT" -U "$PGUSER_LOCAL" -d postgres -qc "CREATE DATABASE $db"
     done
-    echo "PostgreSQL running on 127.0.0.1:$PGPORT (databases: sweets, sweets_test)"
+    echo "PostgreSQL running on 127.0.0.1:$PGPORT (databases: sweets, sweets_test, sweets_e2e)"
     ;;
   stop)
     as_pg "$PGBIN/pg_ctl -D '$PGDATA_DIR' -m fast stop" ;;

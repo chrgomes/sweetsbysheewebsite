@@ -3,7 +3,8 @@ import Stripe from "stripe";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db, schema } from "@/db";
 import { memoryOutbox } from "@/lib/email";
-import { getOrderForCustomer, handlePaymentEvent, placeOrder, quoteCart, updateOrderStatus, type CheckoutInput } from "@/lib/orders";
+import type { z } from "zod";
+import { checkoutSchema, getOrderForCustomer, handlePaymentEvent, placeOrder, quoteCart, updateOrderStatus, type CheckoutInput } from "@/lib/orders";
 import { parseStripeWebhook } from "@/lib/payments/stripe";
 import { configureShop, createTestProduct, futureDate, resetDb } from "../support/db";
 
@@ -12,15 +13,15 @@ async function setup() {
   return createTestProduct();
 }
 
-function checkoutInput(productId: string, optionValueIds: string[], overrides: Partial<CheckoutInput> = {}): CheckoutInput {
-  return {
+function checkoutInput(productId: string, optionValueIds: string[], overrides: Partial<z.input<typeof checkoutSchema>> = {}): CheckoutInput {
+  return checkoutSchema.parse({
     cart: [{ productId, optionValueIds, quantity: 2 }],
     customerName: "Jamie Customer",
     customerEmail: "jamie@example.test",
     fulfillmentMethod: "pickup",
     fulfillmentDate: futureDate(5),
     ...overrides,
-  };
+  });
 }
 
 beforeEach(resetDb);

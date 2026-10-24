@@ -35,7 +35,7 @@ export async function listPublicProducts(opts: { categoryId?: string; featuredOn
   if (opts.featuredOnly) where.push(eq(products.featured, true));
   return db().query.products.findMany({
     where: and(...where),
-    with: { category: true, images: { orderBy: (i, { asc }) => [asc(i.sortOrder)], limit: 1 } },
+    with: { category: true, images: { orderBy: (i, { asc }) => [asc(i.sortOrder)], limit: 1 }, options: { with: { values: true } } },
     orderBy: [asc(products.sortOrder), asc(products.name)],
     limit: opts.limit,
   });
@@ -61,7 +61,7 @@ export async function listRelatedProducts(productId: string, categoryId: string 
   if (!categoryId) return [];
   return db().query.products.findMany({
     where: and(eq(products.categoryId, categoryId), ne(products.id, productId), inArray(products.status, [...PUBLIC_STATUSES])),
-    with: { category: true, images: { orderBy: (i, { asc }) => [asc(i.sortOrder)], limit: 1 } },
+    with: { category: true, images: { orderBy: (i, { asc }) => [asc(i.sortOrder)], limit: 1 }, options: { with: { values: true } } },
     orderBy: [asc(products.sortOrder)],
     limit,
   });
