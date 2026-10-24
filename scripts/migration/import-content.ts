@@ -83,15 +83,21 @@ await db.transaction(async (tx) => {
 
   for (const [i, f] of catalog.faqs.entries()) {
     const exists = await tx.query.faqs.findFirst({ where: eq(schema.faqs.question, f.question) });
-    if (!exists) await tx.insert(schema.faqs).values({ question: f.question, answer: f.answer, published: f.published, sourceUrl: f.sourceUrl, sortOrder: i }), stats.faqs++;
+    if (exists) continue;
+    await tx.insert(schema.faqs).values({ question: f.question, answer: f.answer, published: f.published, sourceUrl: f.sourceUrl, sortOrder: i });
+    stats.faqs++;
   }
   for (const pg of catalog.pages) {
     const exists = await tx.query.pages.findFirst({ where: eq(schema.pages.slug, pg.slug) });
-    if (!exists) await tx.insert(schema.pages).values(pg), stats.pages++;
+    if (exists) continue;
+    await tx.insert(schema.pages).values(pg);
+    stats.pages++;
   }
   for (const [i, g] of catalog.gallery.entries()) {
     const exists = await tx.query.galleryItems.findFirst({ where: eq(schema.galleryItems.src, g.src) });
-    if (!exists) await tx.insert(schema.galleryItems).values({ ...g, sortOrder: i }), stats.gallery++;
+    if (exists) continue;
+    await tx.insert(schema.galleryItems).values({ ...g, sortOrder: i });
+    stats.gallery++;
   }
 
   // Settings: fill only empty fields.
@@ -100,7 +106,10 @@ await db.transaction(async (tx) => {
   const next = { ...current };
   for (const [k, v] of Object.entries(catalog.settings)) {
     const empty = current[k] === undefined || current[k] === null || (Array.isArray(current[k]) && (current[k] as unknown[]).length === 0);
-    if (empty && v !== undefined) (next[k] = v), stats.settingsFields++;
+    if (empty && v !== undefined) {
+      next[k] = v;
+      stats.settingsFields++;
+    }
   }
   if (stats.settingsFields) {
     await tx.insert(schema.settings).values({ key: "site", value: next }).onConflictDoUpdate({ target: schema.settings.key, set: { value: next, updatedAt: new Date() } });

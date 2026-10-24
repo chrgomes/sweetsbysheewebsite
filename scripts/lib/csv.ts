@@ -19,11 +19,17 @@ export function readCsv(file: string): Record<string, string>[] {
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (quoted) {
-      if (c === '"' && text[i + 1] === '"') (field += '"'), i++;
+      if (c === '"' && text[i + 1] === '"') {
+        field += '"';
+        i++;
+      }
       else if (c === '"') quoted = false;
       else field += c;
     } else if (c === '"') quoted = true;
-    else if (c === ",") row.push(field), (field = "");
+    else if (c === ",") {
+      row.push(field);
+      field = "";
+    }
     else if (c === "\n" || c === "\r") {
       if (c === "\r" && text[i + 1] === "\n") i++;
       row.push(field);
@@ -32,7 +38,10 @@ export function readCsv(file: string): Record<string, string>[] {
       field = "";
     } else field += c;
   }
-  if (field || row.length) row.push(field), rows.push(row);
+  if (field || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
   const [headers, ...body] = rows.filter((r) => r.some((c) => c !== ""));
   return (body ?? []).map((r) => Object.fromEntries((headers ?? []).map((h, i) => [h, r[i] ?? ""])));
 }

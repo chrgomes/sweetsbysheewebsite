@@ -84,7 +84,9 @@ const enqueue = (u: string | null) => {
   if (url.origin !== origin) return;
   if (/\.(jpe?g|png|gif|webp|svg|avif|pdf|zip|mp4|mov|css|js|ico|woff2?)$/i.test(url.pathname)) return;
   if (/\/(cart|checkout|account|login|logout|cdn-cgi)(\/|$)/i.test(url.pathname)) return;
-  if (!seen.has(u)) seen.add(u), queue.push(u);
+  if (seen.has(u)) return;
+  seen.add(u);
+  queue.push(u);
 };
 
 // Seed queue from sitemaps.

@@ -29,7 +29,7 @@ export function InquiryForm({ config }: { config: InquiryFormConfig }) {
   const initialType = v.productType ?? config.productTypes.find((t) => t.value === config.preselect)?.value ?? "";
   const [productType, setProductType] = useState(initialType);
   const [method, setMethod] = useState(v.fulfillmentMethod ?? "pickup");
-  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [files, setFiles] = useState<{ name: string; tooBig: boolean }[]>([]);
   const chosen = config.productTypes.find((t) => t.value === productType);
   const isCake = /cake/i.test(productType) && !/cupcake|cake ?pop/i.test(productType);
 
@@ -127,13 +127,18 @@ export function InquiryForm({ config }: { config: InquiryFormConfig }) {
             multiple
             aria-describedby={["inspiration-hint", e.inspiration && "inspiration-error"].filter(Boolean).join(" ")}
             aria-invalid={e.inspiration ? true : undefined}
-            onChange={(ev) => setFileNames([...(ev.target.files ?? [])].map((f) => f.name))}
+            onChange={(ev) => setFiles([...(ev.target.files ?? [])].map((f) => ({ name: f.name, tooBig: f.size > config.maxMb * 1024 * 1024 })))}
             className="block w-full rounded-xl border border-dashed border-line-strong bg-white px-4 py-5 text-sm text-ink-soft file:mr-4 file:rounded-full file:border-0 file:bg-blush file:px-4 file:py-2 file:text-sm file:font-medium file:text-berry-deep hover:border-ink-muted"
           />
-          {fileNames.length > 0 && (
-            <ul className={cn("mt-2 text-sm", fileNames.length > config.maxFiles ? "text-danger" : "text-ink-soft")} aria-live="polite">
-              {fileNames.length > config.maxFiles && <li>Please choose no more than {config.maxFiles} images.</li>}
-              {fileNames.map((n) => <li key={n}>• {n}</li>)}
+          {files.length > 0 && (
+            <ul className="mt-2 text-sm text-ink-soft" aria-live="polite">
+              {files.length > config.maxFiles && <li className="text-danger">Please choose no more than {config.maxFiles} images.</li>}
+              {files.map((f) => (
+                <li key={f.name} className={f.tooBig ? "text-danger" : undefined}>
+                  • {f.name}
+                  {f.tooBig && ` — larger than ${config.maxMb} MB, please choose a smaller photo`}
+                </li>
+              ))}
             </ul>
           )}
         </Field>

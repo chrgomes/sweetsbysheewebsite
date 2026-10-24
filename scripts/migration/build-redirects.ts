@@ -36,12 +36,24 @@ for (const p of pages) {
   const oldPath = (u.pathname.replace(/\/$/, "") || "/") + u.search;
   let target = bySource.get(u.pathname.replace(/\/$/, "") || "/");
   let match = target ? "catalog" : "";
-  if (!target && NEW_ROUTES.has(oldPath)) (target = oldPath), (match = "same");
+  if (!target && NEW_ROUTES.has(oldPath)) {
+    target = oldPath;
+    match = "same";
+  }
   if (!target) {
     const cat = catalog?.categories.find((c) => u.pathname.toLowerCase().includes(c.slug));
-    if (cat && p.page_type === "category") (target = `/shop/${cat.slug}`), (match = "category");
+    if (cat && p.page_type === "category") {
+      target = `/shop/${cat.slug}`;
+      match = "category";
+    }
   }
-  if (!target) for (const [re, to] of PATTERNS) if (re.test(u.pathname)) ((target = to), (match = "pattern"));
+  if (!target) {
+    const hit = PATTERNS.find(([re]) => re.test(u.pathname));
+    if (hit) {
+      target = hit[1];
+      match = "pattern";
+    }
+  }
   rows.push({ old_url: p.url, old_path: oldPath, page_type: p.page_type, new_path: target ?? "", match: target ? match : "UNMATCHED — map manually" });
 }
 

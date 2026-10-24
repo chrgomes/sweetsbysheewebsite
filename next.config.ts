@@ -29,8 +29,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
   experimental: {
     serverActions: {
-      // Inspiration-image uploads go through a Server Action.
-      bodySizeLimit: "26mb",
+      // Inspiration-image uploads go through a Server Action: MAX_UPLOAD_FILES × MAX_UPLOAD_MB
+      // (default 5 × 8 MB) plus form fields must fit. Raise this if you raise those limits.
+      bodySizeLimit: "45mb",
     },
   },
   async headers() {
