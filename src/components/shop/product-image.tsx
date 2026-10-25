@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { cn } from "@/components/ui/cn";
+import { BRAND_ASSETS } from "@/lib/brand";
 
 /**
  * Product/gallery photo in a fixed aspect frame. When there's no photo yet
@@ -29,9 +30,8 @@ export function ProductImage({
         <Image src={src} alt={alt} fill sizes={sizes} priority={priority} quality={85} className="object-cover" />
       ) : (
         <div role="img" aria-label={`Photo of ${name} coming soon`} className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_30%_20%,var(--paper),transparent_60%)]">
-          <span className="font-display text-6xl text-berry/30 italic" aria-hidden="true">
-            {name.trim().charAt(0).toUpperCase() || "S"}
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element -- tiny decorative static asset */}
+          <img src={BRAND_ASSETS.mark} alt="" aria-hidden="true" className="w-[38%] max-w-40 opacity-40" />
           <span className="absolute bottom-4 text-xs tracking-wide text-ink-muted" aria-hidden="true">
             Photo coming soon
           </span>

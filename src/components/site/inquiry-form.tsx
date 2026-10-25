@@ -43,7 +43,7 @@ export function InquiryForm({ config }: { config: InquiryFormConfig }) {
         <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
       </div>
 
-      <div className="rounded-2xl border border-honey/30 bg-honey-tint px-5 py-4 text-sm text-[#5c4322]">
+      <div className="rounded-2xl border border-honey/30 bg-honey-tint px-5 py-4 text-sm text-ink">
         <p className="font-medium">This is a request, not a confirmed order.</p>
         <p className="mt-1">We review every request personally and will reply about availability and pricing. Your date is only booked once we confirm it with you.{config.notice ? ` ${config.notice}` : ""}</p>
       </div>

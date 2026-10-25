@@ -21,7 +21,7 @@ export default async function ThanksPage({ searchParams }: PageProps<"/custom-or
           Your reference is <strong className="font-semibold text-ink">{reference}</strong>. Please keep it handy if you contact us.
         </p>
       )}
-      <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-honey/30 bg-honey-tint px-6 py-5 text-left text-[#5c4322]">
+      <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-honey/30 bg-honey-tint px-6 py-5 text-left text-ink">
         <p className="font-medium">What happens next</p>
         <p className="mt-2 text-sm">
           This is a request, not a confirmed order. We&apos;ll review the details and reply by email about availability and pricing. Your date is only booked once we confirm it with you.{row?.customerEmailStatus === "sent" && " We've also emailed you a copy of your request."}

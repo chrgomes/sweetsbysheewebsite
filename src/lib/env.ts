@@ -22,7 +22,7 @@ const schema = z
     /** "resend" sends real email; "console" logs it; "memory" keeps it in-process (tests). */
     EMAIL_PROVIDER: z.enum(["console", "resend", "memory"]).default("console"),
     RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().default("Sweets by Shee <orders@example.com>"),
+    EMAIL_FROM: z.string().default("Sweets by Shyee <orders@example.com>"),
     BUSINESS_NOTIFICATION_EMAIL: z.string().optional(),
 
     /** Root directory for uploaded files. Must not be inside /public. */

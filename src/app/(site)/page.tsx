@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Container, Eyebrow, SectionHeading } from "@/components/ui/container";
 import { Prose } from "@/components/ui/prose";
 import { listPublicCategories, listPublicProducts } from "@/lib/catalog";
+import { BRAND_ASSETS } from "@/lib/brand";
 import { listFaqs, listGallery, listTestimonials } from "@/lib/content";
 import { describeHours } from "@/lib/dates";
 import { paymentProvider } from "@/lib/payments";
@@ -70,9 +71,17 @@ export default async function HomePage() {
                 <Image src={heroImage} alt={heroAlt} fill priority sizes="(min-width: 1024px) 50vw, 100vw" quality={85} className="object-cover" />
               </div>
             ) : (
-              <div aria-hidden="true" className="relative grid aspect-[5/4] place-items-center overflow-hidden rounded-[2rem] bg-blush/60 lg:aspect-[4/5]">
-                <div className="absolute inset-8 rounded-[1.5rem] border border-berry/15" />
-                <p className="font-display text-[7rem] leading-none text-berry/25 italic sm:text-[9rem]">{settings.businessName.charAt(0)}</p>
+              <div className="relative grid aspect-[5/4] place-items-center overflow-hidden rounded-[2rem] bg-blush/60 lg:aspect-[4/5]">
+                <div aria-hidden="true" className="absolute inset-6 rounded-[1.5rem] border border-rose/30 sm:inset-8" />
+                <Image
+                  src={settings.logoImage ?? BRAND_ASSETS.logo}
+                  alt={`${settings.businessName} logo`}
+                  width={520}
+                  height={520}
+                  priority
+                  sizes="(min-width: 1024px) 420px, 70vw"
+                  className="w-[70%] max-w-[26rem] drop-shadow-[0_18px_40px_rgb(86_42_18/0.12)]"
+                />
               </div>
             )}
           </div>
@@ -140,7 +149,7 @@ export default async function HomePage() {
           <Container>
             <div className="grid gap-10 overflow-hidden rounded-[2rem] bg-ink px-6 py-12 text-cream sm:px-12 lg:grid-cols-12 lg:gap-16 lg:px-16 lg:py-16">
               <div className="lg:col-span-5">
-                <Eyebrow className="text-honey">Celebrations & events</Eyebrow>
+                <Eyebrow className="text-petal">Celebrations & events</Eyebrow>
                 <h2 id="custom-heading" className="mt-3 text-4xl leading-tight font-light sm:text-5xl">
                   Something made just for you
                 </h2>
@@ -158,7 +167,7 @@ export default async function HomePage() {
                   ["Confirm & enjoy", `Your date is booked once we've agreed the details${checkoutOpen ? " and payment is complete" : ""}.`],
                 ].map(([title, body], i) => (
                   <li key={title} className="rounded-2xl border border-cream/15 p-6">
-                    <span className="font-display text-3xl text-honey">{i + 1}</span>
+                    <span className="font-display text-3xl text-petal">{i + 1}</span>
                     <h3 className="mt-3 text-xl">{title}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-cream/75">{body}</p>
                   </li>

@@ -1,27 +1,37 @@
 # Redesign plan
 
-## Constraints
+## Brand
 
-The existing brand, photography and audience could not be studied (see [website-audit.md](website-audit.md)).
-The visual system is therefore built to be **re-themed in one place** once the real brand assets are
-migrated: colours and fonts are tokens in `src/app/globals.css`, and components reference only those
-tokens. Photography slots fall back to a quiet monogram tile, never stock imagery.
+The owner supplied the logo (original kept at `data/assets/originals/brand/`). The business name is
+**Sweets by Shyee**; the domain is sweetsbyshee.com (different spelling, intentionally). The name and
+asset paths live in `src/lib/brand.ts`; the name can be overridden in Admin → Settings.
+
+| Asset | File | Used for |
+| --- | --- | --- |
+| Circular badge (transparent outside the ring) | `public/images/brand/logo.webp` | Header, footer, homepage hero (until a hero photo is set), admin, JSON-LD logo |
+| Cupcake mark (transparent) | `public/images/brand/mark.webp` | "Photo coming soon" placeholders |
+| Favicon / Apple touch icon | `src/app/icon.png`, `src/app/apple-icon.png` | Browser tabs, home-screen icons |
+| Social sharing image | `public/images/brand/og.png` | Default Open Graph image (1200×630) |
+
+The logo's tagline, "Homemade bakes · Freshly crafted", is used in the demo settings and can be set in Admin → Settings.
 
 ## Direction
 
-Warm, editorial and conversion-focused — closer to a small luxury patisserie than a generic bakery
-template.
+Warm, sweet and refined, taking its palette straight from the logo, with an editorial layout so
+photography leads.
 
 | Element | Choice | Why |
 | --- | --- | --- |
-| Display type | Fraunces (variable, self-hosted) | Soft, characterful serif with optical sizing; reads "handmade" without being twee |
+| Display type | Fraunces (variable, self-hosted) | Soft, characterful serif that sits comfortably beside the logo's script and roman capitals |
 | Body type | Inter (variable, self-hosted) | Highly legible at small sizes and in forms |
-| Palette | Cream paper `#fbf6ef`, cocoa ink `#2a1c17`, berry accent `#8e3b46`, blush and honey tints | Food-friendly neutrals let photography lead; a single strong accent for actions |
-| Shape | 1.25rem card radius, pill buttons, hairline borders | Soft and consistent; avoids heavy shadows and gradients |
+| Palette | Blush paper `#fcefe9`, chocolate ink `#4a2414`, deep rose actions `#9a4d49`, logo rose `#c98278` and petal pink `#f2b6ad` for decoration | Matches the logo. The logo's own rose is too pale for text (2.7:1), so a deeper rose carries buttons and links |
+| Shape | 1.25rem card radius, pill buttons, hairline borders | Soft and consistent; echoes the round badge |
 | Motion | One gentle rise-in on the hero; colour/shadow transitions on hover | Enhances without delaying content; disabled under `prefers-reduced-motion` |
 
-All text/background pairs meet WCAG AA (body ink ≈ 15:1 on cream, muted text ≈ 4.8:1, white on berry ≈ 8:1).
-Focus is a consistent 2px blue outline with offset.
+All text/background pairs meet WCAG AA: body ink ≈ 12:1 on blush, muted text ≈ 4.9:1, deep rose links
+≈ 5.3:1, white on deep-rose buttons ≈ 6:1, petal on chocolate ≈ 6:1. Focus is a consistent 2px blue
+outline with offset. Colours and fonts are tokens in `src/app/globals.css`; components reference only
+those tokens.
 
 ## Sitemap
 

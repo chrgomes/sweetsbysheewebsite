@@ -1,3 +1,4 @@
+import { BRAND_ASSETS } from "@/lib/brand";
 import { siteUrl } from "@/lib/env";
 import type { SiteSettings } from "@/lib/settings";
 
@@ -14,7 +15,7 @@ export function organizationJsonLd(s: SiteSettings) {
     ...(s.tagline ? { slogan: s.tagline } : {}),
     ...(s.contactEmail ? { email: s.contactEmail } : {}),
     ...(s.contactPhone ? { telephone: s.contactPhone } : {}),
-    ...(s.logoImage ? { logo: siteUrl(s.logoImage) } : {}),
+    logo: siteUrl(s.logoImage ?? BRAND_ASSETS.logo),
     ...(s.heroImage ? { image: siteUrl(s.heroImage) } : {}),
     ...(s.socialLinks.length ? { sameAs: s.socialLinks.map((l) => l.url) } : {}),
     ...(s.showAddress && s.addressLines.length ? { address: { "@type": "PostalAddress", streetAddress: s.addressLines.join(", ") } } : {}),

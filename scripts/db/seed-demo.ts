@@ -2,7 +2,7 @@
  * DEMO DATA for local development, screenshots and end-to-end tests only.
  *
  * Every record is clearly labelled as a sample. None of it describes the real
- * Sweets by Shee menu, prices or policies, which come from the content
+ * Sweets by Shyee menu, prices or policies, which come from the content
  * migration (pnpm db:seed) and owner review. Refuses to run in production.
  */
 import { sql } from "drizzle-orm";
@@ -68,9 +68,10 @@ await db.insert(schema.pages).values({ slug: "sample-policy", title: "Sample Pol
 await db.insert(schema.settings).values({
   key: "site",
   value: {
-    businessName: "Sweets by Shee",
-    tagline: null,
-    heroHeading: "Sweets by Shee",
+    businessName: "Sweets by Shyee",
+    // From the owner's logo.
+    tagline: "Homemade bakes · Freshly crafted",
+    heroHeading: "Sweets by Shyee",
     heroSubheading: "Demo homepage text — replace with the bakery's own introduction in Admin → Settings.",
     announcement: "Demo environment: products, prices and payments are samples.",
     contactEmail: "demo@example.com",

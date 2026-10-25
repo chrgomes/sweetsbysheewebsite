@@ -1,6 +1,6 @@
 # Sweets by Shyee
 
-Website for the Sweets by Shyee bakery: a premium storefront with online ordering, a custom-order
+Website for the Sweets by Shyee bakery (domain: sweetsbyshyee.com): a premium storefront with online ordering, a custom-order
 request workflow, and an admin area for the owner.
 
 > **Status:** application complete and tested; **real content not yet migrated** because the source

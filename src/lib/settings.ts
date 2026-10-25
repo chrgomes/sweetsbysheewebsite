@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "@/db";
+import { BRAND_NAME } from "@/lib/brand";
 
 /**
  * Business settings, editable by the owner in /admin/settings.
@@ -11,7 +12,7 @@ import { db, schema } from "@/db";
  * checkout stays disabled until the owner confirms tax and fulfilment rules.
  */
 export const siteSettingsSchema = z.object({
-  businessName: z.string().min(1).default("Sweets by Shee"),
+  businessName: z.string().min(1).default(BRAND_NAME),
   tagline: z.string().nullable().default(null),
   heroHeading: z.string().nullable().default(null),
   heroSubheading: z.string().nullable().default(null),
