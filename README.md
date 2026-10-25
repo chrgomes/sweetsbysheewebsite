@@ -1,10 +1,10 @@
-# Sweets by Shee
+# Sweets by Shyee
 
-Website for the Sweets by Shee bakery: a premium storefront with online ordering, a custom-order
+Website for the Sweets by Shyee bakery: a premium storefront with online ordering, a custom-order
 request workflow, and an admin area for the owner.
 
 > **Status:** application complete and tested; **real content not yet migrated** because the source
-> site (sweetsbyshee.com) could not be reached from the build environment. The site currently runs
+> site (sweetsbyshyee.com) could not be reached from the build environment. The site currently runs
 > on clearly labelled demo data. See [docs/website-audit.md](docs/website-audit.md) and
 > [docs/content-migration.md](docs/content-migration.md) for the one-command migration once access is available.
 
