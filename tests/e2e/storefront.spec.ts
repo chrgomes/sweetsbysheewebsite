@@ -28,7 +28,7 @@ test("catalogue: categories, product details, SEO metadata", async ({ page }) =>
   await expect(page.getByRole("link", { name: "Sample Celebration Cake" })).toHaveCount(0);
 
   await page.goto("/products/sample-celebration-cake");
-  await expect(page).toHaveTitle("Sample Celebration Cake | Sweets by Shee");
+  await expect(page).toHaveTitle("Sample Celebration Cake | Sweets by Shyee");
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", "http://localhost:3100/products/sample-celebration-cake");
   const ld = await page.locator('script[type="application/ld+json"]').allTextContents();
   expect(ld.some((t) => t.includes('"@type":"Product"') && t.includes('"price":"45.00"'))).toBe(true);

@@ -1,24 +1,27 @@
 @import "tailwindcss";
 
 /*
- * Sweets by Shee design tokens.
- * Warm, editorial palette: cream paper, cocoa ink, a berry accent for actions,
- * and blush/honey tints for quiet emphasis. Re-theme here once the owner's
- * brand assets are migrated; components only reference these tokens.
+ * Sweets by Shyee design tokens, drawn from the owner's logo: blush paper
+ * (#fcede7), chocolate (#562a12), dusty-rose ring (#c98278) and frosting pink.
+ * The logo's light rose is too pale for text, so actions use a deeper rose
+ * (--berry) that meets WCAG AA; the light rose (--rose) is decoration only.
+ * Components only reference these tokens.
  */
 :root {
-  --cream: #fbf6ef;
-  --paper: #fffdf9;
-  --ink: #2a1c17;
-  --ink-soft: #5f4c44;
-  --ink-muted: #7a665d;
-  --line: #e8dccf;
-  --line-strong: #d6c4b2;
-  --berry: #8e3b46;
-  --berry-deep: #722e38;
-  --blush: #f4e1dc;
-  --honey: #b98a4b;
-  --honey-tint: #f5ead9;
+  --cream: #fcefe9;
+  --paper: #fffaf7;
+  --ink: #4a2414;
+  --ink-soft: #6b4535;
+  --ink-muted: #86604f;
+  --line: #f0dcd3;
+  --line-strong: #e2c4b8;
+  --berry: #9a4d49;
+  --berry-deep: #7f3c39;
+  --rose: #c98278;
+  --petal: #f2b6ad;
+  --blush: #f9ddd6;
+  --honey: #b8835a;
+  --honey-tint: #f7e7dc;
   --sage: #5f7058;
   --sage-tint: #e6ebe1;
   --danger: #a12a2a;
@@ -37,6 +40,8 @@
   --color-berry: var(--berry);
   --color-berry-deep: var(--berry-deep);
   --color-blush: var(--blush);
+  --color-rose: var(--rose);
+  --color-petal: var(--petal);
   --color-honey: var(--honey);
   --color-honey-tint: var(--honey-tint);
   --color-sage: var(--sage);

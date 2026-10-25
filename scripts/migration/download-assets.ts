@@ -66,7 +66,7 @@ for (const row of rows) {
   }
   processed++;
   try {
-    const res = await fetch(url, { headers: { "User-Agent": "SweetsBySheeSiteMigration/1.0 (authorized by site owner)" }, signal: AbortSignal.timeout(30_000) });
+    const res = await fetch(url, { headers: { "User-Agent": "SweetsByShyeeSiteMigration/1.0 (authorized by site owner)" }, signal: AbortSignal.timeout(30_000) });
     await sleep(Number(args.delay));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const bytes = Buffer.from(await res.arrayBuffer());

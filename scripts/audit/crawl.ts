@@ -26,7 +26,7 @@ const { values: args } = parseArgs({
   allowPositionals: true,
 });
 
-const UA = "SweetsBySheeSiteMigration/1.0 (authorized by site owner; site rebuild audit)";
+const UA = "SweetsByShyeeSiteMigration/1.0 (authorized by site owner; site rebuild audit)";
 const start = new URL(args.start!);
 const origin = start.origin;
 const maxPages = Number(args["max-pages"]);

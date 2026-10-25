@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
+import { BRAND_ASSETS, BRAND_NAME } from "@/lib/brand";
 import { logout } from "@/app/admin/actions/auth";
 import { AdminNav } from "@/components/admin/nav";
 import { requireAdmin } from "@/lib/auth/session";
@@ -28,7 +30,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-dvh bg-cream lg:grid lg:grid-cols-[15rem_1fr]">
       <aside className="border-b border-line bg-paper lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-b-0">
         <div className="flex items-center justify-between px-5 py-4 lg:block lg:py-6">
-          <Link href="/admin" className="font-display text-xl text-ink">Sweets by Shee</Link>
+          <Link href="/admin" className="flex items-center gap-2 font-display text-xl text-ink">
+            <Image src={BRAND_ASSETS.logo} alt="" width={40} height={40} className="size-10" />
+            {BRAND_NAME}
+          </Link>
           <Link href="/" className="text-xs text-ink-muted hover:text-berry lg:mt-1 lg:block">View site ↗</Link>
         </div>
         <AdminNav items={items} />

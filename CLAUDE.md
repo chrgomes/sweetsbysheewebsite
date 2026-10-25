@@ -1,6 +1,6 @@
-# Sweets by Shee — project instructions
+# Sweets by Shyee — project instructions
 
-Rebuild of the Sweets by Shee bakery website: storefront with online checkout, custom-order
+Rebuild of the Sweets by Shyee bakery website (domain sweetsbyshee.com — note the different spelling; the business name is "Shyee"): storefront with online checkout, custom-order
 requests, and an owner admin. See `docs/architecture.md` for the design and `docs/` for everything else.
 
 @AGENTS.md

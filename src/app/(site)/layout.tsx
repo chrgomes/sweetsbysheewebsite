@@ -1,5 +1,6 @@
 import { SiteFooter } from "@/components/site/footer";
 import { SiteHeader, type NavItem } from "@/components/site/header";
+import { BRAND_ASSETS } from "@/lib/brand";
 import { listPolicyPages } from "@/lib/content";
 import { getSettings } from "@/lib/settings";
 
@@ -18,7 +19,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
   ];
   return (
     <>
-      <SiteHeader businessName={settings.businessName} nav={nav} announcement={settings.announcement} customOrdersEnabled={settings.customOrdersEnabled} />
+      <SiteHeader businessName={settings.businessName} logo={settings.logoImage ?? BRAND_ASSETS.logo} nav={nav} announcement={settings.announcement} customOrdersEnabled={settings.customOrdersEnabled} />
       <main id="main" tabIndex={-1} className="focus:outline-none">
         {children}
       </main>

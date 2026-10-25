@@ -1,4 +1,6 @@
+import Image from "next/image";
 import Link from "next/link";
+import { BRAND_ASSETS } from "@/lib/brand";
 import { Container } from "@/components/ui/container";
 import type { SiteSettings } from "@/lib/settings";
 
@@ -8,7 +10,7 @@ export function SiteFooter({ settings, policies }: { settings: SiteSettings; pol
     <footer className="mt-24 border-t border-line bg-paper">
       <Container className="grid gap-12 py-16 md:grid-cols-12">
         <div className="md:col-span-5">
-          <p className="font-display text-3xl text-ink">{settings.businessName}</p>
+          <Image src={settings.logoImage ?? BRAND_ASSETS.logo} alt={`${settings.businessName} logo`} width={144} height={144} className="size-32 sm:size-36" />
           {settings.tagline && <p className="mt-3 max-w-sm text-ink-soft">{settings.tagline}</p>}
           {settings.serviceArea && <p className="mt-3 text-sm text-ink-muted">{settings.serviceArea}</p>}
         </div>

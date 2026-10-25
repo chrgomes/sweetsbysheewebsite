@@ -84,7 +84,7 @@ export function FormAlert({ tone = "error", children, id }: { tone?: "error" | "
   const styles = {
     error: "border-danger/30 bg-danger-tint text-danger",
     success: "border-sage/30 bg-sage-tint text-sage",
-    info: "border-honey/30 bg-honey-tint text-[#6b4f27]",
+    info: "border-honey/30 bg-honey-tint text-ink-soft",
   }[tone];
   return (
     <div id={id} role={tone === "error" ? "alert" : "status"} className={cn("rounded-xl border px-4 py-3 text-sm", styles)}>
