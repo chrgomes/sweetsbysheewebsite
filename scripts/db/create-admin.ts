@@ -1,7 +1,7 @@
 /**
  * Provision an administrator. There is deliberately no public sign-up.
  *
- *   ADMIN_EMAIL=owner@example.com ADMIN_NAME="Shee" pnpm admin:create
+ *   ADMIN_EMAIL=owner@example.com ADMIN_NAME="Shyee" pnpm admin:create
  *
  * The password is read from ADMIN_PASSWORD, or prompted for (hidden) when
  * run interactively. It is never printed or logged.
