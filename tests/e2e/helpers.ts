@@ -20,3 +20,15 @@ export function isoDaysFromNow(days: number) {
 
 /** Created by scripts/dev/e2e-setup.sh. */
 export const ADMIN = { email: "e2e-owner@example.com", password: "e2e-password-123456" };
+/** Production staff: can view orders and move them through production only. */
+export const PRODUCTION = { email: "e2e-production@example.com", password: "e2e-password-654321" };
+
+export async function signIn(page: Page, who: { email: string; password: string }) {
+  await page.goto("/admin/login");
+  await page.getByLabel("Email").fill(who.email);
+  await page.getByLabel("Password").fill(who.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("heading", { name: /Hello/ }).waitFor();
+}
+/** Order manager: requests, quotes, payments and production, but not settings or refunds. */
+export const ORDER_MANAGER = { email: "e2e-orders@example.com", password: "e2e-password-orders-1" };

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ADMIN, SHOTS } from "./helpers";
+import { ADMIN, PRODUCTION, SHOTS, signIn } from "./helpers";
 
 
 test.beforeEach(async ({ page }) => {
@@ -55,6 +55,80 @@ test("settings validation and checkout switch", async ({ page }) => {
   await page.getByLabel("Sales tax rate (%)").fill("abc");
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText(/Enter the tax rate as a percentage/)).toBeVisible();
+});
+
+test("personalisation options, collections and draft preview", async ({ page }) => {
+  await page.getByRole("link", { name: "Products", exact: true }).click();
+  await page.getByRole("link", { name: "New product" }).click();
+  await page.getByLabel("Name").fill("E2E Draft Cookie");
+  await page.getByLabel("Base price ($)").fill("4");
+  await page.getByLabel("Sell through online checkout").check();
+  await page.getByLabel("Sample Collection").check();
+  await page.getByRole("button", { name: "Create product" }).click();
+  await expect(page.getByText("Product created.")).toBeVisible();
+  await page.getByRole("button", { name: "+ Add option" }).click();
+  await page.getByPlaceholder("e.g. Size").fill("Name to ice");
+  await page.getByLabel("Option type").selectOption("text");
+  await page.getByRole("button", { name: "Save options" }).click();
+  await expect(page.getByText("Personalisation options need a character limit.")).toBeVisible();
+  await page.getByPlaceholder("e.g. 30").fill("12");
+  await page.getByRole("button", { name: "Save options" }).click();
+  await expect(page.getByText("Options saved.")).toBeVisible();
+
+  // Drafts are hidden from customers, but staff can preview them.
+  const anon = await page.context().browser()!.newContext();
+  const anonPage = await anon.newPage();
+  expect((await anonPage.goto("/products/e2e-draft-cookie"))!.status()).toBe(404);
+  // ?preview=1 does nothing without a staff session.
+  expect((await anonPage.goto("/products/e2e-draft-cookie?preview=1"))!.status()).toBe(404);
+  await anon.close();
+  await page.goto("/products/e2e-draft-cookie?preview=1");
+  await expect(page.getByText(/Staff preview — this product is draft/)).toBeVisible();
+  await expect(page.getByLabel(/Name to ice/)).toHaveCount(0); // ordering is disabled in preview
+});
+
+test("discount codes, calendar and order export", async ({ page }) => {
+  await page.goto("/admin/discounts");
+  await page.locator("#code-new").fill("spring 5");
+  await page.locator("#kind-new").selectOption("fixed");
+  await page.locator("#value-new").fill("5");
+  await page.getByRole("button", { name: "Create code" }).click();
+  await expect(page.getByText("Code SPRING5 created.")).toBeVisible();
+
+  await page.goto("/admin/calendar");
+  await expect(page.getByRole("heading", { name: "Production calendar" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Calendar view" }).getByRole("link", { name: "day", exact: true }).click();
+  await page.getByLabel("Units available").fill("0");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#reason-error")).toBeVisible();
+  await page.getByLabel("Reason").fill("E2E closed day");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Capacity updated for this day.")).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/admin-calendar.png`, fullPage: true });
+
+  const csv = await page.request.get("/admin/orders-export?status=all");
+  expect(csv.status()).toBe(200);
+  expect(csv.headers()["content-type"]).toContain("text/csv");
+  expect(await csv.text()).toContain('"Reference"');
+});
+
+test("production staff can progress orders but not reach owner areas", async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await signIn(page, PRODUCTION);
+  const nav = page.getByRole("navigation", { name: "Admin" });
+  await expect(nav.getByRole("link", { name: "Orders" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Calendar" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Discount codes" })).toHaveCount(0);
+  for (const path of ["/admin/settings", "/admin/users", "/admin/discounts", "/admin/customers"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/admin\?denied=1$/);
+  }
+  await expect(page.getByText("Your role doesn't include access to that page.")).toBeVisible();
+  // Exports carry customer data and aren't available to production staff.
+  expect((await page.request.get("/admin/orders-export")).status()).toBe(404);
+  await ctx.close();
 });
 
 test("signed-out visitors can't call admin pages", async ({ browser }) => {

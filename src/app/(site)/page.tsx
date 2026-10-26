@@ -7,10 +7,10 @@ import { FaqList } from "@/components/site/faq-list";
 import { ButtonLink } from "@/components/ui/button";
 import { Container, Eyebrow, SectionHeading } from "@/components/ui/container";
 import { Prose } from "@/components/ui/prose";
-import { listPublicCategories, listPublicProducts } from "@/lib/catalog";
+import { listActiveCollections, listBestsellers, listNewArrivals, listPublicCategories, listPublicProducts, newSince, type ProductCardData } from "@/lib/catalog";
 import { BRAND_ASSETS } from "@/lib/brand";
 import { listFaqs, listGallery, listTestimonials } from "@/lib/content";
-import { describeHours } from "@/lib/dates";
+import { dateInZone, describeHours } from "@/lib/dates";
 import { paymentProvider } from "@/lib/payments";
 import { checkoutReadiness, getSettings } from "@/lib/settings";
 import { organizationJsonLd } from "@/lib/seo/structured-data";
@@ -27,15 +27,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [settings, featured, allProducts, categories, gallery, testimonials, faqs] = await Promise.all([
-    getSettings(),
+  const settings = await getSettings();
+  const [featured, allProducts, categories, gallery, testimonials, faqs, collections, newArrivals, bestsellers] = await Promise.all([
     listPublicProducts({ featuredOnly: true, limit: 6 }),
     listPublicProducts({ limit: 6 }),
     listPublicCategories(),
     listGallery({ limit: 8 }),
     listTestimonials(3),
     listFaqs(),
+    listActiveCollections(dateInZone(new Date(), settings.timezone), { featuredOnly: true }),
+    listNewArrivals(settings.newArrivalDays, 3),
+    settings.bestsellerMinOrders > 0 ? listBestsellers(settings.bestsellerMinOrders, 3) : Promise.resolve([]),
   ]);
+  const newCutoff = newSince(settings.newArrivalDays);
   const showcase = featured.length ? featured : allProducts;
   const checkoutOpen = checkoutReadiness(settings, paymentProvider() !== null).ready;
   const heroImage = settings.heroImage ?? showcase.find((p) => p.images[0])?.images[0]?.src ?? null;
@@ -92,7 +96,7 @@ export default async function HomePage() {
       <section aria-labelledby="featured-heading" className="py-16 lg:py-24">
         <Container>
           <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <SectionHeading id="featured-heading" eyebrow="From the kitchen" title={featured.length ? "Customer favourites" : "On the menu"} />
+            <SectionHeading id="featured-heading" eyebrow="From the kitchen" title={featured.length ? "Our picks" : "On the menu"} />
             {showcase.length > 0 && (
               <Link href="/shop" className="text-sm font-medium text-berry underline-offset-4 hover:underline">
                 See everything →
@@ -101,7 +105,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-12">
             {showcase.length ? (
-              <ProductGrid products={showcase} />
+              <ProductGrid products={showcase} newSince={newCutoff} />
             ) : (
               <div className="rounded-[var(--radius-card)] border border-dashed border-line-strong bg-paper px-6 py-14 text-center">
                 <p className="font-display text-2xl text-ink">Our menu is being updated.</p>
@@ -118,6 +122,15 @@ export default async function HomePage() {
           </div>
         </Container>
       </section>
+
+      {/* Seasonal and featured collections */}
+      {collections.map((c) => (
+        <ProductRow key={c.id} id={`collection-${c.slug}`} eyebrow="Collection" title={c.name} intro={c.description} href={`/collections/${c.slug}`} linkLabel={`See the ${c.name} collection`} products={c.products.slice(0, 3)} newSince={newCutoff} />
+      ))}
+
+      {/* Derived from publish dates and real paid orders — never hand-labelled. */}
+      {newArrivals.length > 0 && <ProductRow id="new-heading" eyebrow="Just added" title="New arrivals" products={newArrivals} newSince={newCutoff} />}
+      {bestsellers.length > 0 && <ProductRow id="bestsellers-heading" eyebrow="Popular right now" title="Bestsellers" products={bestsellers} newSince={newCutoff} />}
 
       {/* Categories */}
       {categories.length > 1 && (
@@ -311,5 +324,25 @@ export default async function HomePage() {
         </Container>
       </section>
     </>
+  );
+}
+
+function ProductRow(props: { id: string; eyebrow: string; title: string; intro?: string | null; href?: string; linkLabel?: string; products: ProductCardData[]; newSince?: number }) {
+  return (
+    <section aria-labelledby={props.id} className="py-12 lg:py-16">
+      <Container>
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <SectionHeading id={props.id} eyebrow={props.eyebrow} title={props.title} intro={props.intro ?? undefined} />
+          {props.href && (
+            <Link href={props.href} className="text-sm font-medium text-berry underline-offset-4 hover:underline">
+              {props.linkLabel ?? "See all"} →
+            </Link>
+          )}
+        </div>
+        <div className="mt-10">
+          <ProductGrid products={props.products} newSince={props.newSince} />
+        </div>
+      </Container>
+    </section>
   );
 }

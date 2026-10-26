@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { SHOTS } from "./helpers";
 
-for (const path of ["/", "/shop", "/products/sample-celebration-cake", "/custom-orders", "/cart", "/checkout", "/faq", "/contact"]) {
+for (const path of ["/", "/shop", "/products/sample-celebration-cake", "/collections/sample-collection", "/custom-orders", "/cart", "/checkout", "/faq", "/contact", "/orders/find"]) {
   test(`no horizontal scroll on ${path}`, async ({ page }) => {
     await page.goto(path);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

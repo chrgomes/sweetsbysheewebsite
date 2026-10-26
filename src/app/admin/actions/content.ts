@@ -8,6 +8,7 @@ import type { AdminFormState } from "@/components/admin/admin-form";
 import { db, schema } from "@/db";
 import { audit } from "@/lib/audit";
 import { actorFor, requireAdmin } from "@/lib/auth/session";
+import { isIsoDate } from "@/lib/dates";
 import { slugify, SLUG_PATTERN } from "@/lib/slug";
 import { deleteFile, putFile } from "@/lib/storage";
 import { validateImageUploads } from "@/lib/uploads";
@@ -36,7 +37,7 @@ async function storeMediaImage(form: FormData, field: string): Promise<{ src: st
 }
 
 export async function saveCategory(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("products:edit");
   const id = idOf(f);
   if (id && isDelete(f)) {
     await db().delete(schema.categories).where(eq(schema.categories.id, id));
@@ -58,8 +59,36 @@ export async function saveCategory(_p: AdminFormState, f: FormData): Promise<Adm
   return { ok: true, message: "Category saved." };
 }
 
+export async function saveCollection(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
+  const admin = await requireAdmin("products:edit");
+  const id = idOf(f);
+  if (id && isDelete(f)) {
+    await db().delete(schema.collections).where(eq(schema.collections.id, id));
+    await audit(actorFor(admin), "collection.deleted", "collection", id);
+    revalidatePath("/admin/collections");
+    return { ok: true, message: "Collection deleted. Its products are unchanged." };
+  }
+  const name = s(f, "name", 120);
+  if (!name) return { message: "Name is required." };
+  const slug = (s(f, "slug", 80) || slugify(name)).toLowerCase();
+  if (!SLUG_PATTERN.test(slug)) return { message: "Slug may only contain lowercase letters, numbers and hyphens." };
+  const startsOn = s(f, "startsOn", 10) || null;
+  const endsOn = s(f, "endsOn", 10) || null;
+  if ((startsOn && !isIsoDate(startsOn)) || (endsOn && !isIsoDate(endsOn))) return { message: "Dates must be valid." };
+  if (startsOn && endsOn && endsOn < startsOn) return { message: "The end date is before the start date." };
+  const values = { name, slug, description: s(f, "description", 1000) || null, active: f.get("active") === "on", featured: f.get("featured") === "on", startsOn, endsOn, sortOrder: n(f, "sortOrder") };
+  const clash = await db().query.collections.findFirst({ where: eq(schema.collections.slug, slug) });
+  if (clash && clash.id !== id) return { message: "Another collection already uses that slug." };
+  if (id) await db().update(schema.collections).set(values).where(eq(schema.collections.id, id));
+  else await db().insert(schema.collections).values(values);
+  await audit(actorFor(admin), id ? "collection.updated" : "collection.created", "collection", id, { name, active: values.active, featured: values.featured });
+  revalidatePath("/admin/collections");
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Collection saved. Add products to it from each product's page." };
+}
+
 export async function saveFaq(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("content:edit");
   const id = idOf(f);
   if (id && isDelete(f)) {
     await db().delete(schema.faqs).where(eq(schema.faqs.id, id));
@@ -76,7 +105,7 @@ export async function saveFaq(_p: AdminFormState, f: FormData): Promise<AdminFor
 }
 
 export async function savePage(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("content:edit");
   const id = idOf(f);
   if (id && isDelete(f)) {
     await db().delete(schema.pages).where(eq(schema.pages.id, id));
@@ -100,7 +129,7 @@ export async function savePage(_p: AdminFormState, f: FormData): Promise<AdminFo
 }
 
 export async function saveGalleryItem(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("content:edit");
   const id = idOf(f);
   if (id && isDelete(f)) {
     const item = await db().query.galleryItems.findFirst({ where: eq(schema.galleryItems.id, id) });
@@ -127,7 +156,7 @@ export async function saveGalleryItem(_p: AdminFormState, f: FormData): Promise<
 }
 
 export async function saveTestimonial(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin();
+  const admin = await requireAdmin("content:edit");
   const id = idOf(f);
   if (id && isDelete(f)) {
     await db().delete(schema.testimonials).where(eq(schema.testimonials.id, id));
@@ -145,7 +174,7 @@ export async function saveTestimonial(_p: AdminFormState, f: FormData): Promise<
 }
 
 export async function uploadSiteImage(_p: AdminFormState, f: FormData): Promise<AdminFormState & { src?: string }> {
-  await requireAdmin("owner");
+  await requireAdmin("content:edit");
   const img = await storeMediaImage(f, "image");
   if (!img) return { message: "Choose a photo to upload." };
   if ("error" in img) return { message: img.error };

@@ -34,7 +34,7 @@ function DeleteToggle() {
 }
 
 export default async function ContentPage({ searchParams }: PageProps<"/admin/content">) {
-  await requireAdmin();
+  await requireAdmin("content:edit");
   const sp = await searchParams;
   const tab = TABS.find((t) => t.key === sp.tab)?.key ?? "faqs";
 

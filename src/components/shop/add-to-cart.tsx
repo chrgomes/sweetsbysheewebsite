@@ -10,7 +10,11 @@ import { cart } from "./cart-store";
 export type PurchaseOption = {
   id: string;
   name: string;
+  kind: "choice" | "text";
   required: boolean;
+  maxLength: number | null;
+  priceDeltaCents: number;
+  helpText: string | null;
   values: { id: string; label: string; priceDeltaCents: number; available: boolean }[];
 };
 
@@ -41,21 +45,31 @@ export function AddToCart({
     }
     return init;
   });
+  const [texts, setTexts] = useState<Record<string, string>>({});
   const [quantity, setQuantity] = useState(1);
   const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
   const unit = useMemo(
-    () => basePriceCents + options.reduce((sum, o) => sum + (o.values.find((v) => v.id === selected[o.id])?.priceDeltaCents ?? 0), 0),
-    [basePriceCents, options, selected],
+    () =>
+      basePriceCents +
+      options.reduce(
+        (sum, o) => sum + (o.kind === "text" ? (texts[o.id]?.trim() ? o.priceDeltaCents : 0) : (o.values.find((v) => v.id === selected[o.id])?.priceDeltaCents ?? 0)),
+        0,
+      ),
+    [basePriceCents, options, selected, texts],
   );
-  const missing = options.filter((o) => o.required && !selected[o.id]);
+  const missing = options.filter((o) => o.required && (o.kind === "text" ? !texts[o.id]?.trim() : !selected[o.id]));
 
   function add() {
     if (missing.length) {
-      setStatus({ tone: "error", text: `Please choose ${missing.map((o) => `a ${o.name.toLowerCase()}`).join(" and ")}.` });
+      const choices = missing.filter((o) => o.kind !== "text").map((o) => `a ${o.name.toLowerCase()}`);
+      const texts = missing.filter((o) => o.kind === "text").map((o) => `"${o.name}"`);
+      const parts = [choices.length && `choose ${choices.join(" and ")}`, texts.length && `fill in ${texts.join(" and ")}`].filter(Boolean);
+      setStatus({ tone: "error", text: `Please ${parts.join(" and ")}.` });
       return;
     }
-    cart.add({ productId, optionValueIds: Object.values(selected).filter(Boolean), quantity });
+    const filled = options.filter((o) => o.kind === "text" && texts[o.id]?.trim()).map((o) => ({ optionId: o.id, value: texts[o.id].replace(/\s+/g, " ").trim() }));
+    cart.add({ productId, optionValueIds: Object.values(selected).filter(Boolean), texts: filled.length ? filled : undefined, quantity });
     setStatus({ tone: "ok", text: `Added ${quantity} to your cart.` });
   }
 
@@ -66,7 +80,32 @@ export function AddToCart({
         {quantity > 1 && <span className="ml-2 text-base text-ink-muted">× {quantity} = {formatMoney(unit * quantity, currency)}</span>}
       </p>
 
-      {options.map((o) => (
+      {options.map((o) =>
+        o.kind === "text" ? (
+          <div key={o.id} className="space-y-1.5">
+            <label htmlFor={`${uid}-${o.id}`} className="block text-sm font-medium text-ink">
+              {o.name}
+              {!o.required && <span className="font-normal text-ink-muted"> (optional)</span>}
+              {o.priceDeltaCents > 0 && <span className="font-normal text-ink-muted"> +{formatMoney(o.priceDeltaCents, currency)}</span>}
+            </label>
+            {o.helpText && <p id={`${uid}-${o.id}-hint`} className="text-sm text-ink-muted">{o.helpText}</p>}
+            <input
+              id={`${uid}-${o.id}`}
+              type="text"
+              value={texts[o.id] ?? ""}
+              maxLength={o.maxLength ?? 500}
+              onChange={(e) => {
+                setTexts((t) => ({ ...t, [o.id]: e.target.value }));
+                setStatus(null);
+              }}
+              aria-describedby={[o.helpText ? `${uid}-${o.id}-hint` : "", `${uid}-${o.id}-count`].filter(Boolean).join(" ")}
+              className="block w-full rounded-xl border border-line-strong bg-white px-4 py-3 text-[0.95rem] text-ink focus:border-ink focus:outline-none"
+            />
+            <p id={`${uid}-${o.id}-count`} className="text-right text-xs text-ink-muted">
+              {(texts[o.id] ?? "").length}/{o.maxLength ?? 500}
+            </p>
+          </div>
+        ) : (
         <fieldset key={o.id}>
           <legend className="mb-3 text-sm font-medium text-ink">
             {o.name}
@@ -110,7 +149,8 @@ export function AddToCart({
             })}
           </div>
         </fieldset>
-      ))}
+        ),
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
         <div className="flex items-center rounded-full border border-line-strong bg-paper" role="group" aria-label="Quantity">

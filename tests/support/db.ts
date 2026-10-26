@@ -6,9 +6,11 @@ import { saveSettings, DEFAULT_SETTINGS, type SiteSettings } from "@/lib/setting
 /** Empty every table between tests. */
 export async function resetDb() {
   const tables = [
-    "audit_log", "admin_sessions", "admin_users", "payment_events", "order_items", "orders",
-    "inquiry_attachments", "inquiries", "product_option_values", "product_options", "product_images",
-    "products", "categories", "faqs", "pages", "gallery_items", "testimonials", "settings", "rate_limits",
+    "audit_log", "admin_sessions", "admin_users", "payment_events", "refunds", "payments", "discount_redemptions", "discounts",
+    "capacity_reservations", "capacity_overrides", "notifications", "order_items", "orders", "quote_lines", "quotes",
+    "inquiry_attachments", "inquiries", "customers", "product_collections", "collections", "product_option_values",
+    "product_options", "product_images", "products", "categories", "faqs", "pages", "gallery_items", "testimonials",
+    "settings", "rate_limits",
   ];
   await db().execute(sql.raw(`TRUNCATE ${tables.join(", ")} RESTART IDENTITY CASCADE`));
   memoryOutbox().length = 0;
@@ -58,11 +60,29 @@ export async function createTestProduct(overrides: Partial<typeof schema.product
     .returning();
   const [addOn] = await db().insert(schema.productOptions).values({ productId: product.id, name: "Topper", required: false, sortOrder: 1 }).returning();
   const [topper] = await db().insert(schema.productOptionValues).values({ optionId: addOn.id, label: "Gold topper", priceDeltaCents: 500 }).returning();
-  return { product, values: { small, large, soldOut, topper } };
+  const [message] = await db()
+    .insert(schema.productOptions)
+    .values({ productId: product.id, name: "Message", kind: "text", required: false, maxLength: 20, priceDeltaCents: 300, sortOrder: 2 })
+    .returning();
+  return { product, values: { small, large, soldOut, topper }, message };
 }
 
 export function futureDate(days: number) {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** All emails in the in-memory outbox addressed to `to`. */
+export async function sentTo(to: string) {
+  const { memoryOutbox } = await import("@/lib/email");
+  return memoryOutbox().filter((m) => m.to === to);
+}
+
+export async function createAdmin(role: "owner" | "admin" | "order_manager" | "production" | "reporting" = "owner") {
+  const [u] = await db()
+    .insert(schema.adminUsers)
+    .values({ email: `${role}-${Math.random().toString(36).slice(2, 7)}@example.test`, name: role, passwordHash: "x", role })
+    .returning();
+  return { id: u.id, label: u.email };
 }

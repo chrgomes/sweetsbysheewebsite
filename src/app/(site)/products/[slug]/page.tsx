@@ -11,6 +11,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { FormAlert } from "@/components/ui/field";
 import { Prose } from "@/components/ui/prose";
+import { adminCan } from "@/lib/auth/session";
 import { fromPrice, getProductBySlug, listRelatedProducts } from "@/lib/catalog";
 import { describeHours } from "@/lib/dates";
 import { paymentProvider } from "@/lib/payments";
@@ -18,10 +19,11 @@ import { isPurchasable, MAX_LINE_QUANTITY } from "@/lib/pricing";
 import { productJsonLd } from "@/lib/seo/structured-data";
 import { checkoutReadiness, getSettings } from "@/lib/settings";
 
-export async function generateMetadata({ params }: PageProps<"/products/[slug]">): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps<"/products/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const p = await getProductBySlug(slug);
+  const { product: p, isPreview } = await loadProduct(slug, (await searchParams).preview);
   if (!p) return {};
+  if (isPreview) return { title: `Preview: ${p.name}`, robots: { index: false, follow: false } };
   const description = p.seoDescription ?? p.summary ?? p.description?.slice(0, 160) ?? undefined;
   return {
     title: p.seoTitle ?? p.name,
@@ -31,10 +33,17 @@ export async function generateMetadata({ params }: PageProps<"/products/[slug]">
   };
 }
 
-export default async function ProductPage({ params }: PageProps<"/products/[slug]">) {
+/** `?preview=1` lets signed-in staff see draft products exactly as customers would. */
+async function loadProduct(slug: string, preview: unknown) {
+  const isPreview = preview === "1" && !!(await adminCan("products:view"));
+  return { product: await getProductBySlug(slug, { preview: isPreview }), isPreview };
+}
+
+export default async function ProductPage({ params, searchParams }: PageProps<"/products/[slug]">) {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
+  const { product, isPreview } = await loadProduct(slug, (await searchParams).preview);
   if (!product) notFound();
+  const hidden = product.status === "draft" || product.status === "archived";
   const [settings, related] = await Promise.all([getSettings(), listRelatedProducts(product.id, product.categoryId)]);
   const checkoutOpen = checkoutReadiness(settings, paymentProvider() !== null).ready;
   const purchasable = isPurchasable(product);
@@ -56,8 +65,13 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
 
   return (
     <>
-      <JsonLd data={productJsonLd(product)} />
+      {!hidden && <JsonLd data={productJsonLd(product)} />}
       <Container className="py-8 lg:py-12">
+        {isPreview && (
+          <div className="mb-6">
+            <FormAlert tone="info">Staff preview{hidden ? ` — this product is ${product.status} and hidden from customers` : ""}. Online ordering is disabled in preview.</FormAlert>
+          </div>
+        )}
         <Breadcrumbs items={crumbs} />
         <div className="mt-8 grid gap-10 lg:grid-cols-12 lg:gap-16">
           <div className="lg:sticky lg:top-28 lg:col-span-7 lg:self-start">
@@ -76,7 +90,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
                   productId={product.id}
                   basePriceCents={product.basePriceCents!}
                   currency={product.currency}
-                  options={product.options.map((o) => ({ id: o.id, name: o.name, required: o.required, values: o.values }))}
+                  options={product.options.map((o) => ({ id: o.id, name: o.name, kind: o.kind, required: o.required, maxLength: o.maxLength, priceDeltaCents: o.priceDeltaCents, helpText: o.helpText, values: o.values }))}
                   maxQuantity={Math.min(product.maxPerOrder ?? MAX_LINE_QUANTITY, MAX_LINE_QUANTITY)}
                 />
               ) : (
@@ -89,7 +103,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
                       {product.options.map((o) => (
                         <div key={o.id}>
                           <dt className="font-medium text-ink">{o.name}</dt>
-                          <dd className="text-ink-soft">{o.values.map((v) => v.label).join(" · ")}</dd>
+                          <dd className="text-ink-soft">{o.kind === "text" ? `Personalised${o.maxLength ? ` (up to ${o.maxLength} characters)` : ""}` : o.values.map((v) => v.label).join(" · ")}</dd>
                         </div>
                       ))}
                     </dl>

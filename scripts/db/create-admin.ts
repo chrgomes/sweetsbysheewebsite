@@ -9,6 +9,7 @@
 import { eq } from "drizzle-orm";
 import { createInterface } from "node:readline";
 import { hashPassword, passwordProblems } from "../../src/lib/auth/password";
+import { ROLES, type Role } from "../../src/lib/permissions";
 import { closeDb, db, redactedUrl, schema } from "../lib/db";
 
 function promptHidden(question: string): Promise<string> {
@@ -28,9 +29,14 @@ function promptHidden(question: string): Promise<string> {
 
 const email = (process.env.ADMIN_EMAIL ?? process.argv[2] ?? "").trim().toLowerCase();
 const name = (process.env.ADMIN_NAME ?? process.argv[3] ?? "").trim();
-const role = process.env.ADMIN_ROLE === "staff" ? "staff" : "owner";
+const requested = process.env.ADMIN_ROLE ?? "owner";
+if (!ROLES.includes(requested as Role)) {
+  console.error(`ADMIN_ROLE must be one of: ${ROLES.join(", ")}`);
+  process.exit(1);
+}
+const role = requested as Role;
 if (!email || !email.includes("@") || !name) {
-  console.error('Usage: ADMIN_EMAIL=you@example.com ADMIN_NAME="Your Name" [ADMIN_ROLE=owner|staff] pnpm admin:create');
+  console.error('Usage: ADMIN_EMAIL=you@example.com ADMIN_NAME="Your Name" [ADMIN_ROLE=owner|admin|order_manager|production|reporting] pnpm admin:create');
   process.exit(1);
 }
 const password = process.env.ADMIN_PASSWORD ?? (process.stdin.isTTY ? await promptHidden("Password (min 12 characters): ") : "");

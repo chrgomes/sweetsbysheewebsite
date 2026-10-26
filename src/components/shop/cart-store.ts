@@ -6,7 +6,7 @@ import { useSyncExternalStore } from "react";
  * The cart lives in localStorage and holds only identifiers and quantities.
  * Names and prices shown to the customer always come from the server quote.
  */
-export type StoredLine = { productId: string; optionValueIds: string[]; quantity: number };
+export type StoredLine = { productId: string; optionValueIds: string[]; texts?: { optionId: string; value: string }[]; quantity: number };
 
 const KEY = "sbs-cart-v1";
 const EMPTY: StoredLine[] = [];
@@ -19,7 +19,15 @@ function read(): StoredLine[] {
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((l): l is StoredLine => !!l && typeof l.productId === "string" && Array.isArray(l.optionValueIds) && Number.isInteger(l.quantity) && l.quantity > 0)
+      .filter(
+        (l): l is StoredLine =>
+          !!l &&
+          typeof l.productId === "string" &&
+          Array.isArray(l.optionValueIds) &&
+          Number.isInteger(l.quantity) &&
+          l.quantity > 0 &&
+          (l.texts === undefined || (Array.isArray(l.texts) && l.texts.every((t: unknown) => !!t && typeof (t as { value?: unknown }).value === "string"))),
+      )
       .slice(0, 30);
   } catch {
     return [];
@@ -56,13 +64,19 @@ function getSnapshot() {
   return snapshot;
 }
 
-const sameOptions = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join() === [...b].sort().join();
+const textKey = (t: StoredLine["texts"]) =>
+  (t ?? [])
+    .map((x) => `${x.optionId}=${x.value.replace(/\s+/g, " ").trim()}`)
+    .sort()
+    .join("|");
+const sameLine = (a: StoredLine, b: StoredLine) =>
+  a.productId === b.productId && [...a.optionValueIds].sort().join() === [...b.optionValueIds].sort().join() && textKey(a.texts) === textKey(b.texts);
 
 export const cart = {
   lines: () => getSnapshot(),
   add(line: StoredLine) {
     const lines = [...getSnapshot()];
-    const i = lines.findIndex((l) => l.productId === line.productId && sameOptions(l.optionValueIds, line.optionValueIds));
+    const i = lines.findIndex((l) => sameLine(l, line));
     if (i >= 0) lines[i] = { ...lines[i], quantity: Math.min(lines[i].quantity + line.quantity, 50) };
     else lines.push({ ...line, optionValueIds: [...line.optionValueIds].sort() });
     write(lines);

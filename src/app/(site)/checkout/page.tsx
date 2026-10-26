@@ -4,7 +4,6 @@ import { CheckoutForm } from "@/components/shop/checkout-form";
 import { Container, SectionHeading } from "@/components/ui/container";
 import { FormAlert } from "@/components/ui/field";
 import { addDays, dateInZone } from "@/lib/dates";
-import { env } from "@/lib/env";
 import { paymentProvider } from "@/lib/payments";
 import { checkoutReadiness, getSettings } from "@/lib/settings";
 
@@ -29,7 +28,7 @@ export default async function CheckoutPage({ searchParams }: PageProps<"/checkou
               deliveryArea: settings.deliveryArea,
               pickupInstructions: settings.pickupInstructions,
               maxDate: addDays(dateInZone(new Date(), settings.timezone), settings.maxAdvanceDays),
-              automaticTax: provider?.name === "stripe" && env().STRIPE_AUTOMATIC_TAX,
+              windows: settings.fulfillmentWindows,
             }}
           />
         ) : (

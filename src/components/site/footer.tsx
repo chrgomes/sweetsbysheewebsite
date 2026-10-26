@@ -22,6 +22,7 @@ export function SiteFooter({ settings, policies }: { settings: SiteSettings; pol
               {settings.customOrdersEnabled && <li><Link className="text-ink hover:text-berry" href="/custom-orders">Custom orders</Link></li>}
               <li><Link className="text-ink hover:text-berry" href="/gallery">Gallery</Link></li>
               <li><Link className="text-ink hover:text-berry" href="/cart">Cart</Link></li>
+              <li><Link className="text-ink hover:text-berry" href="/orders/find">Find my orders</Link></li>
             </ul>
           </div>
           <div>

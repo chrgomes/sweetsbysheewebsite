@@ -1,6 +1,6 @@
 import "server-only";
 import { randomToken } from "@/lib/tokens";
-import type { CheckoutSession, CreateCheckoutInput, PaymentProvider } from "./types";
+import type { CheckoutSession, CreateCheckoutInput, PaymentProvider, RefundResult } from "./types";
 
 /**
  * Local/e2e stand-in for a hosted checkout page. Refused in production by
@@ -12,5 +12,11 @@ export const fakeProvider: PaymentProvider = {
     const sessionId = `fake_cs_${randomToken(12)}`;
     const params = new URLSearchParams({ success: input.successUrl, cancel: input.cancelUrl });
     return { sessionId, url: `/dev/fake-checkout/${sessionId}?${params}` };
+  },
+  async refund(): Promise<RefundResult> {
+    return { refundId: `fake_re_${randomToken(10)}`, status: "succeeded" };
+  },
+  async recoverSession() {
+    return null;
   },
 };

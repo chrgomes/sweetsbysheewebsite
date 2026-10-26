@@ -62,6 +62,42 @@ export const siteSettingsSchema = z.object({
   customOrderNotice: z.string().nullable().default(null),
   /** Choices for "What would you like?" on the custom-order form. Empty = use custom-order products. */
   customOrderTypes: z.array(z.string().min(1)).default([]),
+  /** Show the optional budget question on the custom-order form. */
+  askBudget: z.boolean().default(true),
+
+  /* Production capacity and scheduling ------------------------------ */
+  /** Capacity units available per day. Null = no daily limit. */
+  dailyCapacityUnits: z.number().int().min(0).nullable().default(null),
+  /** "HH:MM" local time. Orders placed after it count as placed the next day for lead-time purposes. */
+  orderCutoffTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .nullable()
+    .default(null),
+  /** Opening hours per ISO weekday, shown on the contact page. Empty = not shown. */
+  businessHours: z
+    .array(z.object({ day: z.number().int().min(1).max(7), open: z.string().regex(/^\d{2}:\d{2}$/), close: z.string().regex(/^\d{2}:\d{2}$/) }))
+    .default([]),
+  /** Optional pickup/delivery windows customers choose from at checkout, e.g. "10:00–12:00". */
+  fulfillmentWindows: z.array(z.string().min(1).max(40)).default([]),
+
+  /* Quotes, deposits and balances ------------------------------------ */
+  /** Default deposit for custom-order quotes, in basis points of the total. Null = full payment. */
+  depositPercentBps: z.number().int().min(0).max(10000).nullable().default(null),
+  /** Days before the fulfilment date that a remaining balance is due (reminder is sent then). */
+  balanceDueDaysBefore: z.number().int().min(0).max(60).default(2),
+  /** How long a sent quote stays valid. */
+  quoteValidityDays: z.number().int().min(1).max(90).default(7),
+
+  /* Merchandising ----------------------------------------------------- */
+  /** Products published within this many days are "New". */
+  newArrivalDays: z.number().int().min(0).max(365).default(30),
+  /** A product needs at least this many paid orders in the last 90 days to be listed as a bestseller. */
+  bestsellerMinOrders: z.number().int().min(1).default(3),
+
+  /* Notifications ------------------------------------------------------ */
+  /** Email customers when their order moves to in production / ready / completed. */
+  notifyStatusChanges: z.boolean().default(true),
 });
 
 export type SiteSettings = z.infer<typeof siteSettingsSchema>;

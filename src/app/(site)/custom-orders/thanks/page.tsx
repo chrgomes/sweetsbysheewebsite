@@ -1,19 +1,23 @@
 import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db, schema } from "@/db";
+import { ClearInquiryDraft } from "@/components/site/inquiry-form";
 import { ButtonLink } from "@/components/ui/button";
 import { Container, Eyebrow } from "@/components/ui/container";
+import { verifyLinkToken } from "@/lib/links";
 
 export const metadata: Metadata = { title: "Request received", robots: { index: false } };
 
 export default async function ThanksPage({ searchParams }: PageProps<"/custom-orders/thanks">) {
-  const { ref } = await searchParams;
+  const { ref, t } = await searchParams;
   const reference = typeof ref === "string" && /^REQ-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(ref) ? ref : null;
-  const row = reference
-    ? await db().query.inquiries.findFirst({ where: eq(schema.inquiries.reference, reference), columns: { customerEmailStatus: true } })
-    : undefined;
+  const token = typeof t === "string" ? t : undefined;
+  const row = reference ? await db().query.inquiries.findFirst({ where: eq(schema.inquiries.reference, reference), columns: { id: true, customerEmail: true } }) : undefined;
+  // Only someone holding the link token sees anything tied to the request.
+  const verified = row && verifyLinkToken("inquiry", row.id, token);
   return (
     <Container size="narrow" className="py-16 text-center lg:py-24">
+      <ClearInquiryDraft />
       <Eyebrow>Request received</Eyebrow>
       <h1 className="mt-3 text-4xl font-light text-ink sm:text-5xl">Thank you — we&apos;ve got your request</h1>
       {reference && (
@@ -24,10 +28,12 @@ export default async function ThanksPage({ searchParams }: PageProps<"/custom-or
       <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-honey/30 bg-honey-tint px-6 py-5 text-left text-ink">
         <p className="font-medium">What happens next</p>
         <p className="mt-2 text-sm">
-          This is a request, not a confirmed order. We&apos;ll review the details and reply by email about availability and pricing. Your date is only booked once we confirm it with you.{row?.customerEmailStatus === "sent" && " We've also emailed you a copy of your request."}
+          This is a request, not a confirmed order. We&apos;ll review the details and reply about availability and pricing. Your date is only booked once you accept our quote and any deposit is paid.
+          {verified && ` We're emailing a copy of your request to ${row.customerEmail}.`}
         </p>
       </div>
       <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+        {verified && <ButtonLink href={`/requests/${reference}?t=${encodeURIComponent(token!)}`} variant="secondary">View request status</ButtonLink>}
         <ButtonLink href="/shop" variant="secondary">Browse the menu</ButtonLink>
         <ButtonLink href="/">Back to home</ButtonLink>
       </div>

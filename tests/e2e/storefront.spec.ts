@@ -5,7 +5,11 @@ test("home page renders key sections and every internal link resolves", async ({
   const errors = trackErrors(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Customer favourites" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Our picks" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sample Collection" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "New arrivals" })).toBeVisible();
+  // Bestsellers need real paid orders, so the demo shop has none.
+  await expect(page.getByRole("heading", { name: "Bestsellers" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Something made just for you" })).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/home-desktop.png`, fullPage: true });
 
@@ -45,8 +49,13 @@ test("unavailable products can't be added to the cart", async ({ page }) => {
 
 test("required options are enforced before adding to cart", async ({ page }) => {
   await page.goto("/products/sample-celebration-cake");
-  await page.getByRole("button", { name: "Add to cart" }).click();
-  await expect(page.getByText(/Please choose a size and a flavour/)).toBeVisible();
+  // Retry the click in case it lands before the page has hydrated.
+  await expect(async () => {
+    await page.getByRole("button", { name: "Add to cart" }).click();
+    await expect(page.getByText(/Please choose a size and a flavour/)).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  // The optional personalisation isn't demanded.
+  await expect(page.getByText(/fill in/)).toHaveCount(0);
 });
 
 test("full purchase: options, cart, checkout, payment, confirmation", async ({ page }) => {
@@ -87,6 +96,7 @@ test("full purchase: options, cart, checkout, payment, confirmation", async ({ p
   await page.getByLabel("Full name").fill("Avery Tester");
   await page.getByLabel("Email").fill("avery@example.com");
   await page.getByLabel("Pickup date").fill(isoDaysFromNow(1));
+  await page.getByLabel("Time").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await expect(page.locator("#fulfillmentDate-error")).toContainText("notice");
 
@@ -98,7 +108,8 @@ test("full purchase: options, cart, checkout, payment, confirmation", async ({ p
   await expect(page.getByRole("heading", { name: "Pay $183.60" })).toBeVisible();
   await page.getByRole("button", { name: "Simulate successful payment" }).click();
   await expect(page.getByRole("heading", { name: "Thank you, Avery!" })).toBeVisible();
-  await expect(page.getByText("Paid — confirmed")).toBeVisible();
+  await expect(page.getByText("Your order is confirmed.")).toBeVisible();
+  await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/order-confirmation.png`, fullPage: true });
   await expect(page.getByRole("link", { name: "Cart, empty" })).toBeVisible();
 
@@ -116,10 +127,31 @@ test("failed payment leaves the order unpaid and the cart intact", async ({ page
   await page.getByLabel("Full name").fill("Fail Case");
   await page.getByLabel("Email").fill("fail@example.com");
   await page.getByLabel("Pickup date").fill(isoDaysFromNow(6));
+  await page.getByLabel("Time").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Continue to payment" }).click();
   await page.getByRole("button", { name: "Simulate failed payment" }).click();
-  await expect(page.getByRole("heading", { name: "This order wasn't completed" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "This order was cancelled" })).toBeVisible();
+  await expect(page.getByText("Payment failed.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Cart, 1 item" })).toBeVisible();
+});
+
+test("personalised text and discount codes are priced by the server", async ({ page }) => {
+  await page.goto("/products/sample-celebration-cake");
+  await page.getByText('6" round').click();
+  await page.getByText("Sample vanilla").click();
+  const message = page.getByLabel(/Message on cake/);
+  await message.fill("Happy 30th, Sam!");
+  await expect(page.getByText("$48.00").first()).toBeVisible(); // 45 + 3 personalisation
+  await expect(message).toHaveAttribute("maxlength", "30");
+  await page.getByRole("button", { name: "Add to cart" }).click();
+  await page.goto("/checkout");
+  await expect(page.getByText("Happy 30th, Sam!")).toBeVisible();
+  await page.getByLabel(/Discount code/).fill("nope");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText("That code isn't valid.")).toBeVisible();
+  await page.getByLabel(/Discount code/).fill("demo10");
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.getByText("−$4.80")).toBeVisible(); // 10% of 48
 });
 
 test("tampered cart contents are rejected by the server", async ({ page }) => {

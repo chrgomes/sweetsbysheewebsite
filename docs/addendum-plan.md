@@ -1,7 +1,9 @@
 # Addendum implementation plan — advanced frontend, backend and bakery operations
 
-_Status: in progress. This document is the single source of truth for the addendum's scope,
-decisions and acceptance criteria. Updated as phases land._
+_Status: Phases 1 and 2 implemented and tested; Phase 3 designed, not built. This document is the single
+source of truth for the addendum's scope, decisions and acceptance criteria. How it works now:
+[architecture.md](architecture.md); day-to-day use: [runbook.md](runbook.md); metric definitions:
+[reporting.md](reporting.md)._
 
 ## 1. Starting point (what already exists)
 

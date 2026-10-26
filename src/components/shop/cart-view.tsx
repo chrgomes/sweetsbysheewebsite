@@ -29,7 +29,7 @@ export function CartView({ checkoutOpen }: { checkoutOpen: boolean }) {
     <div className="grid gap-10 lg:grid-cols-12">
       <ul className="divide-y divide-line border-y border-line lg:col-span-8" aria-busy={loading}>
         {lines.map((line, index) => {
-          const key = lineKey(line.productId, line.optionValueIds);
+          const key = lineKey(line.productId, line.optionValueIds, line.texts);
           const p = priced.get(key);
           const err = errors.get(key);
           return (

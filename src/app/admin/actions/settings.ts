@@ -9,6 +9,7 @@ import { audit } from "@/lib/audit";
 import { hashPassword, passwordProblems } from "@/lib/auth/password";
 import { actorFor, requireAdmin } from "@/lib/auth/session";
 import { parseMoneyInput } from "@/lib/money";
+import { ROLES } from "@/lib/permissions";
 import { getSettings, saveSettings, siteSettingsSchema } from "@/lib/settings";
 import { emailSchema } from "@/lib/validation";
 
@@ -19,7 +20,7 @@ const str = (f: FormData, k: string) => {
 const lines = (f: FormData, k: string) => String(f.get(k) ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
 
 export async function updateSettings(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin("owner");
+  const admin = await requireAdmin("settings:edit");
   const before = await getSettings();
 
   const taxRaw = str(f, "taxRate");
@@ -34,6 +35,24 @@ export async function updateSettings(_p: AdminFormState, f: FormData): Promise<A
     const [label, url] = line.split("|").map((x) => x.trim());
     if (!label || !url || !/^https:\/\//.test(url)) return { message: `Social link "${line}" should look like: Instagram | https://instagram.com/yourname` };
     social.push({ label, url });
+  }
+
+  const depositRaw = str(f, "depositPercent");
+  const depositPercentBps = depositRaw === null ? null : Math.round(Number(depositRaw) * 100);
+  if (depositRaw !== null && (!Number.isFinite(Number(depositRaw)) || depositPercentBps! < 0 || depositPercentBps! > 10000)) return { message: "Enter the deposit as a percentage between 0 and 100, or leave it blank.", errors: { depositPercent: "Invalid" } };
+  const capRaw = str(f, "dailyCapacityUnits");
+  const dailyCapacityUnits = capRaw === null ? null : Number(capRaw);
+  if (dailyCapacityUnits !== null && (!Number.isInteger(dailyCapacityUnits) || dailyCapacityUnits < 0)) return { message: "Daily capacity must be a whole number, or blank for no limit.", errors: { dailyCapacityUnits: "Invalid" } };
+
+  const DAY = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+  const businessHours: { day: number; open: string; close: string }[] = [];
+  for (const line of lines(f, "businessHours")) {
+    const m = /^([a-z]{3})[a-z]*\.?\s+(\d{1,2}):(\d{2})\s*[-–]\s*(\d{1,2}):(\d{2})$/i.exec(line);
+    const day = m ? DAY.indexOf(m[1].toLowerCase()) + 1 : 0;
+    const open = m ? `${m[2].padStart(2, "0")}:${m[3]}` : "";
+    const close = m ? `${m[4].padStart(2, "0")}:${m[5]}` : "";
+    if (!m || !day || open >= close || close > "24:00") return { message: `Opening hours "${line}" should look like: Mon 09:00-17:00`, errors: { businessHours: "Invalid" } };
+    businessHours.push({ day, open, close });
   }
 
   const candidate = {
@@ -73,6 +92,17 @@ export async function updateSettings(_p: AdminFormState, f: FormData): Promise<A
     customOrderMinNoticeDays: Number(f.get("customOrderMinNoticeDays") ?? before.customOrderMinNoticeDays),
     customOrderNotice: str(f, "customOrderNotice"),
     customOrderTypes: lines(f, "customOrderTypes"),
+    askBudget: f.get("askBudget") === "on",
+    dailyCapacityUnits,
+    orderCutoffTime: str(f, "orderCutoffTime"),
+    businessHours,
+    fulfillmentWindows: lines(f, "fulfillmentWindows"),
+    depositPercentBps,
+    balanceDueDaysBefore: Number(f.get("balanceDueDaysBefore") ?? before.balanceDueDaysBefore),
+    quoteValidityDays: Number(f.get("quoteValidityDays") ?? before.quoteValidityDays),
+    newArrivalDays: Number(f.get("newArrivalDays") ?? before.newArrivalDays),
+    bestsellerMinOrders: Number(f.get("bestsellerMinOrders") ?? before.bestsellerMinOrders),
+    notifyStatusChanges: f.get("notifyStatusChanges") === "on",
   };
   for (const k of ["heroImage", "storyImage"] as const) {
     const v = candidate[k];
@@ -95,10 +125,10 @@ export async function updateSettings(_p: AdminFormState, f: FormData): Promise<A
 }
 
 export async function addAdminUser(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin("owner");
+  const admin = await requireAdmin("users:manage");
   const email = emailSchema.safeParse(f.get("email"));
   const name = String(f.get("name") ?? "").trim().slice(0, 120);
-  const role = z.enum(["owner", "staff"]).safeParse(f.get("role"));
+  const role = z.enum(ROLES).safeParse(f.get("role"));
   const password = String(f.get("password") ?? "");
   if (!email.success || !name || !role.success) return { message: "Name, a valid email and a role are required." };
   const problem = passwordProblems(password);
@@ -112,12 +142,12 @@ export async function addAdminUser(_p: AdminFormState, f: FormData): Promise<Adm
 }
 
 export async function updateAdminUser(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
-  const admin = await requireAdmin("owner");
+  const admin = await requireAdmin("users:manage");
   const id = z.uuid().safeParse(f.get("id"));
   if (!id.success) return { message: "Invalid user." };
   const user = await db().query.adminUsers.findFirst({ where: eq(schema.adminUsers.id, id.data) });
   if (!user) return { message: "User not found." };
-  const role = z.enum(["owner", "staff"]).safeParse(f.get("role"));
+  const role = z.enum(ROLES).safeParse(f.get("role"));
   const active = f.get("active") === "on";
   const password = String(f.get("password") ?? "");
   if (!role.success) return { message: "Invalid role." };

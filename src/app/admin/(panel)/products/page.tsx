@@ -9,7 +9,7 @@ import { formatMoney } from "@/lib/money";
 export const metadata = { title: "Products" };
 
 export default async function ProductsPage({ searchParams }: PageProps<"/admin/products">) {
-  await requireAdmin();
+  await requireAdmin("products:view");
   const sp = await searchParams;
   const review = sp.review === "1";
   const rows = await db().query.products.findMany({

@@ -1,11 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@/db";
-import { getAdmin } from "@/lib/auth/session";
+import { adminCan } from "@/lib/auth/session";
 import { getFile } from "@/lib/storage";
 
-/** Customer inspiration images: only signed-in admins can view them. */
+/** Customer inspiration images: only team members who can view requests can open them. */
 export async function GET(_req: Request, ctx: RouteContext<"/admin/attachments/[id]">) {
-  const admin = await getAdmin();
+  const admin = await adminCan("inquiries:view");
   if (!admin) return new Response("Not found", { status: 404 });
   const { id } = await ctx.params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) return new Response("Not found", { status: 404 });

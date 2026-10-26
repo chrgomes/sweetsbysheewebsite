@@ -5,13 +5,14 @@ import { quoteAction, type QuoteResponse } from "@/app/actions/cart";
 import type { StoredLine } from "./cart-store";
 
 /** Fetch the server's authoritative pricing for the current cart. */
-export function useQuote(lines: StoredLine[]) {
-  const key = JSON.stringify(lines);
+export function useQuote(lines: StoredLine[], discountCode?: string | null) {
+  const key = JSON.stringify([lines, discountCode ?? null]);
   const [result, setResult] = useState<{ key: string; quote: QuoteResponse | null } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    quoteAction(JSON.parse(key))
+    const [l, code] = JSON.parse(key) as [StoredLine[], string | null];
+    quoteAction(l, code)
       .then((quote) => !cancelled && setResult({ key, quote }))
       .catch(() => !cancelled && setResult({ key, quote: null }));
     return () => {
