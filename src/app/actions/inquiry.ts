@@ -12,7 +12,7 @@ import { fieldErrors } from "@/lib/validation";
 export type InquiryState = { message?: string; fieldErrors?: Record<string, string>; values?: Record<string, string> };
 
 const TEXT_FIELDS = [
-  "customerName", "customerEmail", "customerPhone", "eventDate", "eventType", "productType", "productId", "servings", "tiers",
+  "customerName", "customerEmail", "customerPhone", "preferredContact", "eventDate", "eventType", "productType", "productId", "servings", "tiers",
   "size", "flavours", "design", "theme", "colours", "message", "fulfillmentMethod", "allergies", "budget", "details",
   "line1", "line2", "city", "region", "postalCode",
 ] as const;
@@ -51,5 +51,5 @@ export async function submitInquiry(_prev: InquiryState, form: FormData): Promis
 
   const result = await createInquiry(parsed.data, uploads.files);
   if (!result.ok) return { message: result.message, fieldErrors: result.fieldErrors, values };
-  redirect(`/custom-orders/thanks?ref=${encodeURIComponent(result.reference)}`);
+  redirect(`/custom-orders/thanks?ref=${encodeURIComponent(result.reference)}&t=${encodeURIComponent(result.token)}`);
 }

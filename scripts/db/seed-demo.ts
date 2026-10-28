@@ -16,7 +16,7 @@ if (appEnv !== "local" && appEnv !== "test") {
 
 const reset = process.argv.includes("--reset");
 if (reset) {
-  await db.execute(sql`TRUNCATE order_items, orders, payment_events, inquiry_attachments, inquiries, product_option_values, product_options, product_images, products, categories, faqs, pages, gallery_items, testimonials, settings, rate_limits RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE notifications, discount_redemptions, discounts, capacity_reservations, capacity_overrides, refunds, payments, quote_lines, quotes, order_items, orders, customers, payment_events, product_collections, collections, inquiry_attachments, inquiries, product_option_values, product_options, product_images, products, categories, faqs, pages, gallery_items, testimonials, settings, rate_limits RESTART IDENTITY CASCADE`);
 }
 
 const existing = await db.query.products.findFirst();
@@ -36,28 +36,48 @@ const [cakes, treats] = await db
   ])
   .returning();
 
-async function product(p: typeof schema.products.$inferInsert, options: { name: string; required: boolean; values: [string, number, boolean?][] }[] = []) {
-  const [row] = await db.insert(schema.products).values({ migrationStatus: "owner_created", migrationNotes: DEMO_NOTE, ...p }).returning();
+type DemoOption =
+  | { name: string; required: boolean; values: [string, number, boolean?][] }
+  | { name: string; required: boolean; text: { maxLength: number; priceDeltaCents: number; helpText: string } };
+
+async function product(p: typeof schema.products.$inferInsert, options: DemoOption[] = []) {
+  const publishedAt = p.status === "active" ? new Date() : null;
+  const [row] = await db.insert(schema.products).values({ migrationStatus: "owner_created", migrationNotes: DEMO_NOTE, publishedAt, ...p }).returning();
   for (const [i, o] of options.entries()) {
+    if ("text" in o) {
+      await db.insert(schema.productOptions).values({ productId: row.id, name: o.name, kind: "text", required: o.required, sortOrder: i, ...o.text });
+      continue;
+    }
     const [opt] = await db.insert(schema.productOptions).values({ productId: row.id, name: o.name, required: o.required, sortOrder: i }).returning();
     await db.insert(schema.productOptionValues).values(o.values.map(([label, delta, available = true], j) => ({ optionId: opt.id, label, priceDeltaCents: delta, available, sortOrder: j })));
   }
   return row;
 }
 
-await product(
-  { slug: "sample-celebration-cake", name: "Sample Celebration Cake", categoryId: cakes.id, summary: "Demo product with size and flavour options.", description: `${DEMO_NOTE}\n\nUse this product to try the cart, options and checkout flow.`, status: "active", basePriceCents: 4500, directPurchase: true, customOrder: true, leadTimeHours: 72, pickupEligible: true, deliveryEligible: true, featured: true, sortOrder: 0, servings: "Sample: 8–12" },
+const celebration = await product(
+  { slug: "sample-celebration-cake", name: "Sample Celebration Cake", categoryId: cakes.id, summary: "Demo product with size and flavour options.", description: `${DEMO_NOTE}\n\nUse this product to try the cart, options and checkout flow.`, status: "active", basePriceCents: 4500, directPurchase: true, customOrder: true, leadTimeHours: 72, pickupEligible: true, deliveryEligible: true, featured: true, sortOrder: 0, servings: "Sample: 8–12", capacityUnits: 2 },
   [
     { name: "Size", required: true, values: [['6" round', 0], ['8" round', 1500], ['10" round', 3000, false]] },
     { name: "Flavour", required: true, values: [["Sample vanilla", 0], ["Sample chocolate", 0], ["Sample lemon", 300]] },
+    { name: "Message on cake", required: false, text: { maxLength: 30, priceDeltaCents: 300, helpText: "Demo personalisation option." } },
   ],
 );
-await product(
+const cupcakes = await product(
   { slug: "sample-cupcake-box", name: "Sample Cupcake Box", categoryId: treats.id, summary: "Demo product, pickup only.", description: DEMO_NOTE, status: "active", basePriceCents: 2400, directPurchase: true, customOrder: false, leadTimeHours: 48, pickupEligible: true, deliveryEligible: false, featured: true, sortOrder: 1 },
   [{ name: "Box size", required: true, values: [["6 pieces", 0], ["12 pieces", 2000]] }],
 );
-await product({ slug: "sample-tiered-cake", name: "Sample Tiered Cake", categoryId: cakes.id, summary: "Demo custom-order-only product.", description: DEMO_NOTE, status: "active", basePriceCents: null, directPurchase: false, customOrder: true, featured: true, sortOrder: 2 });
+await product({ slug: "sample-tiered-cake", name: "Sample Tiered Cake", categoryId: cakes.id, summary: "Demo custom-order-only product.", description: DEMO_NOTE, status: "active", basePriceCents: null, directPurchase: false, customOrder: true, featured: true, sortOrder: 2, capacityUnits: 4 });
 await product({ slug: "sample-seasonal-treat", name: "Sample Seasonal Treat", categoryId: treats.id, summary: "Demo product that is currently unavailable.", description: DEMO_NOTE, status: "unavailable", basePriceCents: 1800, directPurchase: true, sortOrder: 3 });
+
+const [collection] = await db
+  .insert(schema.collections)
+  .values({ slug: "sample-collection", name: "Sample Collection", description: `${DEMO_NOTE} A demo seasonal collection.`, featured: true })
+  .returning();
+await db.insert(schema.productCollections).values([
+  { productId: celebration.id, collectionId: collection.id, sortOrder: 0 },
+  { productId: cupcakes.id, collectionId: collection.id, sortOrder: 1 },
+]);
+await db.insert(schema.discounts).values({ code: "DEMO10", description: DEMO_NOTE, kind: "percent", value: 1000 });
 
 await db.insert(schema.faqs).values([
   { question: "Sample question: how far ahead should I order?", answer: `${DEMO_NOTE} Replace with the bakery's real lead-time policy.`, sortOrder: 0 },
@@ -89,6 +109,9 @@ await db.insert(schema.settings).values({
     checkoutEnabled: true,
     customOrdersEnabled: true,
     customOrderMinNoticeDays: 7,
+    dailyCapacityUnits: 12,
+    fulfillmentWindows: ["Sample 10:00–12:00", "Sample 14:00–16:00"],
+    depositPercentBps: 5000,
   },
 });
 

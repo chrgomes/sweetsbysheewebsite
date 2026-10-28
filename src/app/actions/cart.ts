@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { log } from "@/lib/log";
-import { cartSchema, checkoutSchema, earliestDateFor, placeOrder, quoteCart } from "@/lib/orders";
+import { cartSchema, checkoutSchema, earliestDateFor, placeOrder, quoteCart, type DiscountQuote } from "@/lib/orders";
 import type { LineError, PricedLine } from "@/lib/pricing";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getSettings } from "@/lib/settings";
@@ -12,27 +12,36 @@ export type QuoteResponse = {
   lines: PricedLine[];
   errors: LineError[];
   subtotalCents: number;
+  discount: DiscountQuote | null;
   currency: string;
   leadTimeHours: number;
   earliestDate: string | null;
+  /** Upcoming dates that are fully booked for this cart. */
+  fullDates: string[];
   pickupAvailable: boolean;
   deliveryAvailable: boolean;
 };
 
-/** Re-price the browser's cart from the database. */
-export async function quoteAction(raw: unknown): Promise<QuoteResponse> {
+const EMPTY: QuoteResponse = { lines: [], errors: [], subtotalCents: 0, discount: null, currency: "usd", leadTimeHours: 0, earliestDate: null, fullDates: [], pickupAvailable: false, deliveryAvailable: false };
+
+/** Re-price the browser's cart from the database (optionally with a discount code). */
+export async function quoteAction(raw: unknown, discountCode?: string | null): Promise<QuoteResponse> {
   const parsed = cartSchema.safeParse(raw);
-  if (!parsed.success) {
-    return { lines: [], errors: [{ productId: "", key: "", message: "Your cart couldn't be read and has been reset." }], subtotalCents: 0, currency: "usd", leadTimeHours: 0, earliestDate: null, pickupAvailable: false, deliveryAvailable: false };
+  if (!parsed.success) return { ...EMPTY, errors: [{ productId: "", key: "", message: "Your cart couldn't be read and has been reset." }] };
+  if (discountCode) {
+    // Code guessing is cheap to try, so it's rate-limited per visitor.
+    const limit = await rateLimit("discount", await clientIp(), 20, 600);
+    if (!limit.allowed) discountCode = null;
   }
   const s = await getSettings();
-  const q = await quoteCart(parsed.data, s);
-  return { ...q, earliestDate: earliestDateFor(q, s) };
+  const q = await quoteCart(parsed.data, s, { discountCode: typeof discountCode === "string" ? discountCode.slice(0, 40) : null });
+  const { earliest, full } = q.lines.length ? await earliestDateFor(q, s) : { earliest: null, full: [] };
+  return { ...q, earliestDate: earliest, fullDates: full };
 }
 
 export type CheckoutState = { message?: string; fieldErrors?: Record<string, string>; lineErrors?: LineError[]; values?: Record<string, string> };
 
-const ECHO_FIELDS = ["customerName", "customerEmail", "customerPhone", "fulfillmentDate", "line1", "line2", "city", "region", "postalCode", "notes"] as const;
+const ECHO_FIELDS = ["customerName", "customerEmail", "customerPhone", "fulfillmentDate", "fulfillmentWindow", "line1", "line2", "city", "region", "postalCode", "notes", "discountCode"] as const;
 
 export async function checkoutAction(_prev: CheckoutState, form: FormData): Promise<CheckoutState> {
   // Echoed back so the form keeps what the customer typed when it shows errors.
@@ -58,10 +67,12 @@ export async function checkoutAction(_prev: CheckoutState, form: FormData): Prom
     customerPhone: form.get("customerPhone") ?? undefined,
     fulfillmentMethod: form.get("fulfillmentMethod"),
     fulfillmentDate: form.get("fulfillmentDate"),
+    fulfillmentWindow: form.get("fulfillmentWindow") ?? undefined,
     deliveryAddress: delivery
       ? { line1: form.get("line1"), line2: form.get("line2") ?? undefined, city: form.get("city"), region: form.get("region"), postalCode: form.get("postalCode") }
       : undefined,
     notes: form.get("notes") ?? undefined,
+    discountCode: form.get("discountCode") ?? undefined,
   });
   if (!parsed.success) {
     const errors = fieldErrors(parsed.error);
@@ -77,4 +88,3 @@ export async function checkoutAction(_prev: CheckoutState, form: FormData): Prom
   }
   redirect(result.redirectUrl);
 }
-

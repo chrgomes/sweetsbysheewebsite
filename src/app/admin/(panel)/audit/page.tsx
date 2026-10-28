@@ -7,7 +7,7 @@ import { formatDateTime } from "@/lib/dates";
 export const metadata = { title: "Activity log" };
 
 export default async function AuditPage() {
-  await requireAdmin("owner");
+  await requireAdmin("audit:view");
   const rows = await db().query.auditLog.findMany({ orderBy: [desc(schema.auditLog.createdAt)], limit: 300 });
   return (
     <>

@@ -13,8 +13,10 @@ export function orderRouteLabel(p: { directPurchase: boolean; customOrder: boole
   return null;
 }
 
-export function ProductCard({ product, priority = false }: { product: ProductCardData; priority?: boolean }) {
+/** Products published on or after `newSince` (ms) get a "New" badge — derived from data, never hand-set. */
+export function ProductCard({ product, priority = false, newSince }: { product: ProductCardData; priority?: boolean; newSince?: number }) {
   const img = product.images[0];
+  const isNew = newSince !== undefined && !!product.publishedAt && product.publishedAt.getTime() >= newSince;
   const route = orderRouteLabel(product);
   const price = fromPrice(product);
   return (
@@ -30,6 +32,7 @@ export function ProductCard({ product, priority = false }: { product: ProductCar
         {product.summary && <p className="line-clamp-2 text-sm text-ink-soft">{product.summary}</p>}
         <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-2 pt-2">
           <Price cents={price?.cents ?? null} from={price?.isFrom} currency={product.currency} className="font-medium text-ink" />
+          {isNew && <Badge tone="sage">New</Badge>}
           {route && <Badge tone={route.tone}>{route.label}</Badge>}
         </div>
       </div>
@@ -37,12 +40,12 @@ export function ProductCard({ product, priority = false }: { product: ProductCar
   );
 }
 
-export function ProductGrid({ products }: { products: ProductCardData[] }) {
+export function ProductGrid({ products, newSince }: { products: ProductCardData[]; newSince?: number }) {
   return (
     <ul className="grid grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
       {products.map((p, i) => (
         <li key={p.id}>
-          <ProductCard product={p} priority={i < 3} />
+          <ProductCard product={p} priority={i < 3} newSince={newSince} />
         </li>
       ))}
     </ul>

@@ -5,8 +5,9 @@ import { useActionState, useState } from "react";
 import { checkoutAction, type CheckoutState } from "@/app/actions/cart";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
-import { Field, FormAlert, Input, Textarea } from "@/components/ui/field";
-import { formatMoney, taxFor } from "@/lib/money";
+import { Field, FormAlert, Input, Select, Textarea } from "@/components/ui/field";
+import { formatMoney } from "@/lib/money";
+import { orderTotals } from "@/lib/pricing";
 import { useCart } from "./cart-store";
 import { useQuote } from "./use-quote";
 
@@ -17,16 +18,23 @@ export type CheckoutConfig = {
   deliveryArea: string | null;
   pickupInstructions: string | null;
   maxDate: string;
-  automaticTax: boolean;
+  windows: string[];
 };
+
+const fmtDay = (iso: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", month: "long", day: "numeric" }) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
 export function CheckoutForm({ config, cancelledRef }: { config: CheckoutConfig; cancelledRef?: string }) {
   const lines = useCart();
-  const { quote, loading } = useQuote(lines);
   const [state, action, pending] = useActionState<CheckoutState, FormData>(checkoutAction, {});
-  const [method, setMethod] = useState<"pickup" | "delivery" | null>(null);
-  const e = state.fieldErrors ?? {};
   const v = state.values ?? {};
+  const [codeInput, setCodeInput] = useState(v.discountCode ?? "");
+  const [appliedCode, setAppliedCode] = useState<string | null>(v.discountCode || null);
+  const { quote, loading } = useQuote(lines, appliedCode);
+  const [method, setMethod] = useState<"pickup" | "delivery" | null>(null);
+  // Controlled so the choice survives React's form reset after a failed submit (selects ignore defaultValue updates).
+  const [timeWindow, setTimeWindow] = useState("");
+  const e = state.fieldErrors ?? {};
 
   if (!lines.length) {
     return (
@@ -48,13 +56,20 @@ export function CheckoutForm({ config, cancelledRef }: { config: CheckoutConfig;
 
   const methods = [quote.pickupAvailable && "pickup", quote.deliveryAvailable && "delivery"].filter(Boolean) as ("pickup" | "delivery")[];
   const chosen = method ?? (methods.length === 1 ? methods[0] : null);
-  const delivery = chosen === "delivery" ? (config.deliveryFeeCents ?? 0) : 0;
-  const tax = config.automaticTax ? null : taxFor(quote.subtotalCents + delivery, config.taxRateBps);
+  const discountOk = quote.discount && "amountCents" in quote.discount ? quote.discount : null;
+  const discountError = quote.discount && "error" in quote.discount ? quote.discount.error : (e.discountCode ?? null);
+  const totals = orderTotals({
+    subtotalCents: quote.subtotalCents,
+    discountCents: discountOk?.amountCents ?? 0,
+    deliveryFeeCents: chosen === "delivery" ? (config.deliveryFeeCents ?? 0) : 0,
+    taxRateBps: config.taxRateBps,
+  });
   const cur = quote.currency;
 
   return (
     <form action={action} className="grid gap-10 lg:grid-cols-12" noValidate>
       <input type="hidden" name="cart" value={JSON.stringify(lines)} />
+      <input type="hidden" name="discountCode" value={discountOk?.code ?? ""} />
       <div className="space-y-10 lg:col-span-7">
         {cancelledRef && <FormAlert tone="info">Payment was cancelled. Your cart is still here whenever you&apos;re ready.</FormAlert>}
         {state.message && <FormAlert id="checkout-error">{state.message}</FormAlert>}
@@ -63,14 +78,14 @@ export function CheckoutForm({ config, cancelledRef }: { config: CheckoutConfig;
         <fieldset className="space-y-5">
           <legend className="font-display text-2xl text-ink">Your details</legend>
           <Field id="customerName" label="Full name" required error={e.customerName}>
-            <Input id="customerName" defaultValue={v.customerName} autoComplete="name" required error={e.customerName} />
+            <Input id="customerName" autoComplete="name" required defaultValue={v.customerName} error={e.customerName} />
           </Field>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field id="customerEmail" label="Email" required error={e.customerEmail} hint="For your receipt and order updates.">
-              <Input id="customerEmail" defaultValue={v.customerEmail} type="email" autoComplete="email" required error={e.customerEmail} hasHint />
+              <Input id="customerEmail" type="email" autoComplete="email" required defaultValue={v.customerEmail} error={e.customerEmail} hasHint />
             </Field>
             <Field id="customerPhone" label="Phone" error={e.customerPhone}>
-              <Input id="customerPhone" defaultValue={v.customerPhone} type="tel" autoComplete="tel" error={e.customerPhone} />
+              <Input id="customerPhone" type="tel" autoComplete="tel" defaultValue={v.customerPhone} error={e.customerPhone} />
             </Field>
           </div>
         </fieldset>
@@ -94,22 +109,41 @@ export function CheckoutForm({ config, cancelledRef }: { config: CheckoutConfig;
           )}
           {e.fulfillmentMethod && <p id="fm-error" className="text-sm font-medium text-danger">{e.fulfillmentMethod}</p>}
 
-          <Field id="fulfillmentDate" label={chosen === "delivery" ? "Delivery date" : "Pickup date"} required error={e.fulfillmentDate} hint={quote.earliestDate ? `The earliest available date for this order is ${new Date(`${quote.earliestDate}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}.` : undefined}>
-            <Input id="fulfillmentDate" defaultValue={v.fulfillmentDate} type="date" required min={quote.earliestDate ?? undefined} max={config.maxDate} error={e.fulfillmentDate} hasHint={!!quote.earliestDate} className="sm:max-w-xs" />
-          </Field>
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field
+              id="fulfillmentDate"
+              label={chosen === "delivery" ? "Delivery date" : "Pickup date"}
+              required
+              error={e.fulfillmentDate}
+              hint={quote.earliestDate ? `Earliest available: ${fmtDay(quote.earliestDate)}.` : "No dates are available right now — please contact us."}
+            >
+              <Input id="fulfillmentDate" type="date" required min={quote.earliestDate ?? undefined} max={config.maxDate} defaultValue={v.fulfillmentDate} error={e.fulfillmentDate} hasHint />
+            </Field>
+            {config.windows.length > 0 && (
+              <Field id="fulfillmentWindow" label="Time" required error={e.fulfillmentWindow}>
+                <Select id="fulfillmentWindow" required value={timeWindow} onChange={(ev) => setTimeWindow(ev.target.value)} error={e.fulfillmentWindow}>
+                  <option value="" disabled>Choose a time</option>
+                  {config.windows.map((w) => <option key={w}>{w}</option>)}
+                </Select>
+              </Field>
+            )}
+          </div>
+          {quote.fullDates.length > 0 && (
+            <p className="text-sm text-ink-muted">Fully booked: {quote.fullDates.map((d) => fmtDay(d, { month: "short", day: "numeric" })).join(", ")}.</p>
+          )}
 
           {chosen === "delivery" && (
             <div className="space-y-5 rounded-2xl border border-line bg-paper p-5">
               <Field id="line1" label="Street address" required error={e.line1}>
-                <Input id="line1" defaultValue={v.line1} autoComplete="address-line1" required error={e.line1} />
+                <Input id="line1" autoComplete="address-line1" required defaultValue={v.line1} error={e.line1} />
               </Field>
               <Field id="line2" label="Apartment, suite, etc." error={e.line2}>
-                <Input id="line2" defaultValue={v.line2} autoComplete="address-line2" error={e.line2} />
+                <Input id="line2" autoComplete="address-line2" defaultValue={v.line2} error={e.line2} />
               </Field>
               <div className="grid gap-5 sm:grid-cols-3">
-                <Field id="city" label="City" required error={e.city}><Input id="city" defaultValue={v.city} autoComplete="address-level2" required error={e.city} /></Field>
-                <Field id="region" label="State" required error={e.region}><Input id="region" defaultValue={v.region} autoComplete="address-level1" required error={e.region} /></Field>
-                <Field id="postalCode" label="ZIP code" required error={e.postalCode}><Input id="postalCode" defaultValue={v.postalCode} autoComplete="postal-code" inputMode="numeric" required error={e.postalCode} /></Field>
+                <Field id="city" label="City" required error={e.city}><Input id="city" autoComplete="address-level2" required defaultValue={v.city} error={e.city} /></Field>
+                <Field id="region" label="State" required error={e.region}><Input id="region" autoComplete="address-level1" required defaultValue={v.region} error={e.region} /></Field>
+                <Field id="postalCode" label="ZIP code" required error={e.postalCode}><Input id="postalCode" autoComplete="postal-code" inputMode="numeric" required defaultValue={v.postalCode} error={e.postalCode} /></Field>
               </div>
             </div>
           )}
@@ -134,16 +168,43 @@ export function CheckoutForm({ config, cancelledRef }: { config: CheckoutConfig;
               </li>
             ))}
           </ul>
-          <dl className="mt-4 space-y-2 border-t border-line pt-4 text-sm">
-            <div className="flex justify-between"><dt className="text-ink-soft">Subtotal</dt><dd>{formatMoney(quote.subtotalCents, cur)}</dd></div>
-            {chosen === "delivery" && <div className="flex justify-between"><dt className="text-ink-soft">Delivery</dt><dd>{formatMoney(delivery, cur)}</dd></div>}
-            <div className="flex justify-between"><dt className="text-ink-soft">{config.taxLabel}</dt><dd>{tax === null ? "Calculated at payment" : formatMoney(tax, cur)}</dd></div>
-            <div className="flex justify-between border-t border-line pt-3 text-base font-medium"><dt>Total</dt><dd>{formatMoney(quote.subtotalCents + delivery + (tax ?? 0), cur)}</dd></div>
+
+          <div className="mt-4 border-t border-line pt-4">
+            <label htmlFor="discount-input" className="text-sm font-medium text-ink">Discount code</label>
+            <div className="mt-1.5 flex gap-2">
+              <input
+                id="discount-input"
+                value={codeInput}
+                onChange={(ev) => setCodeInput(ev.target.value)}
+                onKeyDown={(ev) => {
+                  if (ev.key === "Enter") {
+                    ev.preventDefault();
+                    setAppliedCode(codeInput.trim() || null);
+                  }
+                }}
+                autoComplete="off"
+                aria-describedby="discount-status"
+                aria-invalid={discountError ? true : undefined}
+                className="min-w-0 flex-1 rounded-xl border border-line-strong bg-white px-3 py-2 text-sm uppercase focus:border-ink focus:outline-none"
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={() => setAppliedCode(codeInput.trim() || null)}>Apply</Button>
+            </div>
+            <p id="discount-status" aria-live="polite" className={cn("mt-1.5 text-sm", discountError ? "text-danger" : "text-sage")}>
+              {discountError ?? (discountOk ? `Code ${discountOk.code} applied.` : "")}
+            </p>
+          </div>
+
+          <dl className="mt-2 space-y-2 border-t border-line pt-4 text-sm">
+            <div className="flex justify-between"><dt className="text-ink-soft">Subtotal</dt><dd>{formatMoney(totals.subtotalCents, cur)}</dd></div>
+            {totals.discountCents > 0 && <div className="flex justify-between text-sage"><dt>Discount ({discountOk?.code})</dt><dd>−{formatMoney(totals.discountCents, cur)}</dd></div>}
+            {chosen === "delivery" && <div className="flex justify-between"><dt className="text-ink-soft">Delivery</dt><dd>{formatMoney(totals.deliveryFeeCents, cur)}</dd></div>}
+            <div className="flex justify-between"><dt className="text-ink-soft">{config.taxLabel}</dt><dd>{formatMoney(totals.taxCents, cur)}</dd></div>
+            <div className="flex justify-between border-t border-line pt-3 text-base font-medium"><dt>Total</dt><dd aria-live="polite">{formatMoney(totals.totalCents, cur)}</dd></div>
           </dl>
-          <Button type="submit" size="lg" className="mt-6 w-full" disabled={pending || methods.length === 0}>
+          <Button type="submit" size="lg" className="mt-6 w-full" disabled={pending || methods.length === 0 || !quote.earliestDate}>
             {pending ? "Starting secure payment…" : "Continue to payment"}
           </Button>
-          <p className="mt-3 text-center text-xs text-ink-muted">You&apos;ll complete payment on our payment provider&apos;s secure page. Your order is confirmed once payment succeeds.</p>
+          <p className="mt-3 text-center text-xs text-ink-muted">You&apos;ll complete payment on our payment provider&apos;s secure page. Your order is confirmed once payment succeeds; the final amount is checked again before you pay.</p>
         </div>
       </aside>
     </form>

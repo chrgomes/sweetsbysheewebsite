@@ -21,7 +21,7 @@ function Check({ name, label, defaultChecked, hint }: { name: string; label: str
 }
 
 export default async function SettingsPage() {
-  await requireAdmin("owner");
+  await requireAdmin("settings:edit");
   const s = await getSettings();
   return (
     <>
@@ -51,7 +51,8 @@ export default async function SettingsPage() {
             <Field id="contactEmail" label="Public email" hint="Also receives order and request notifications unless BUSINESS_NOTIFICATION_EMAIL is set."><Input id="contactEmail" type="email" defaultValue={s.contactEmail ?? ""} hasHint /></Field>
             <Field id="contactPhone" label="Public phone"><Input id="contactPhone" defaultValue={s.contactPhone ?? ""} /></Field>
             <Field id="serviceArea" label="Service area"><Input id="serviceArea" defaultValue={s.serviceArea ?? ""} /></Field>
-            <Field id="hours" label="Hours"><Textarea id="hours" rows={2} defaultValue={s.hours ?? ""} /></Field>
+            <Field id="hours" label="Hours (free text)" hint="Used only when structured opening hours below are empty."><Textarea id="hours" rows={2} defaultValue={s.hours ?? ""} hasHint /></Field>
+            <Field id="businessHours" label="Opening hours" hint="One period per line, e.g. Sat 09:00-14:00. Leave blank to hide."><Textarea id="businessHours" rows={3} defaultValue={s.businessHours.map((h) => `${DAYS[h.day - 1]} ${h.open}-${h.close}`).join("\n")} hasHint /></Field>
             <Field id="addressLines" label="Address (one line each)"><Textarea id="addressLines" rows={3} defaultValue={s.addressLines.join("\n")} /></Field>
             <div className="pt-7"><Check name="showAddress" label="Show address publicly" defaultChecked={s.showAddress} hint="Leave off for a home bakery; share pickup details by email instead." /></div>
             <Field id="socialLinks" label="Social links" className="md:col-span-2" hint="One per line: Label | https://…"><Textarea id="socialLinks" rows={3} defaultValue={s.socialLinks.map((l) => `${l.label} | ${l.url}`).join("\n")} hasHint /></Field>
@@ -73,6 +74,9 @@ export default async function SettingsPage() {
                 ))}
               </div>
             </fieldset>
+            <Field id="orderCutoffTime" label="Daily order cut-off" hint="HH:MM. Orders after this count as placed the next day. Blank = none."><Input id="orderCutoffTime" type="time" defaultValue={s.orderCutoffTime ?? ""} hasHint /></Field>
+            <Field id="dailyCapacityUnits" label="Daily capacity (units)" hint="Production slots per day. Each product uses its own number of units. Blank = no limit."><Input id="dailyCapacityUnits" inputMode="numeric" defaultValue={s.dailyCapacityUnits ?? ""} hasHint /></Field>
+            <Field id="fulfillmentWindows" label="Pickup / delivery time windows" hint="One per line, e.g. 10:00–12:00. Blank = no window choice."><Textarea id="fulfillmentWindows" rows={3} defaultValue={s.fulfillmentWindows.join("\n")} hasHint /></Field>
             <Field id="blackoutDates" label="Unavailable dates" hint="One per line, YYYY-MM-DD"><Textarea id="blackoutDates" rows={3} defaultValue={s.blackoutDates.join("\n")} hasHint /></Field>
             <div className="space-y-4 md:col-span-2">
               <Check name="pickupEnabled" label="Offer pickup" defaultChecked={s.pickupEnabled} />
@@ -90,7 +94,18 @@ export default async function SettingsPage() {
             <div className="md:col-span-2"><Check name="customOrdersEnabled" label="Accept custom order requests" defaultChecked={s.customOrdersEnabled} /></div>
             <Field id="customOrderMinNoticeDays" label="Minimum notice (days)" required><Input id="customOrderMinNoticeDays" inputMode="numeric" defaultValue={s.customOrderMinNoticeDays} /></Field>
             <Field id="customOrderNotice" label="Extra note on the form"><Input id="customOrderNotice" defaultValue={s.customOrderNotice ?? ""} /></Field>
+            <div className="md:col-span-2"><Check name="askBudget" label="Ask for a budget on the request form" defaultChecked={s.askBudget} /></div>
+            <Field id="depositPercent" label="Default deposit (%)" hint="Suggested on new quotes. Blank = full payment up front."><Input id="depositPercent" inputMode="decimal" defaultValue={s.depositPercentBps === null ? "" : (s.depositPercentBps / 100).toString()} hasHint /></Field>
+            <Field id="balanceDueDaysBefore" label="Balance due (days before the date)" required hint="The reminder email is sent then."><Input id="balanceDueDaysBefore" inputMode="numeric" defaultValue={s.balanceDueDaysBefore} hasHint /></Field>
+            <Field id="quoteValidityDays" label="Quotes valid for (days)" required><Input id="quoteValidityDays" inputMode="numeric" defaultValue={s.quoteValidityDays} /></Field>
             <Field id="customOrderTypes" label="“What would you like?” choices" className="md:col-span-2" hint="One per line. Leave blank to list products marked for custom orders."><Textarea id="customOrderTypes" rows={4} defaultValue={s.customOrderTypes.join("\n")} hasHint /></Field>
+          </div>
+        </Panel>
+        <Panel title="Shop display & notifications">
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field id="newArrivalDays" label="“New” badge for (days after publishing)" required hint="0 turns the badge and New arrivals off."><Input id="newArrivalDays" inputMode="numeric" defaultValue={s.newArrivalDays} hasHint /></Field>
+            <Field id="bestsellerMinOrders" label="Bestseller threshold (paid orders, last 90 days)" required hint="Bestsellers only appear once real sales reach this."><Input id="bestsellerMinOrders" inputMode="numeric" defaultValue={s.bestsellerMinOrders} hasHint /></Field>
+            <div className="md:col-span-2"><Check name="notifyStatusChanges" label="Email customers when an order is in production, ready or completed" defaultChecked={s.notifyStatusChanges} hint="Confirmation, cancellation and refund emails are always sent." /></div>
           </div>
         </Panel>
       </AdminForm>

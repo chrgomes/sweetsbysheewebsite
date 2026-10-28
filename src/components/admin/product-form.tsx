@@ -20,7 +20,7 @@ function Check({ name, label, defaultChecked, hint }: { name: string; label: str
   );
 }
 
-export function ProductForm({ product, categories }: { product?: Product; categories: { id: string; name: string }[] }) {
+export function ProductForm({ product, categories, collections = [], memberOf = [] }: { product?: Product; categories: { id: string; name: string }[]; collections?: { id: string; name: string }[]; memberOf?: string[] }) {
   const p = product;
   return (
     <AdminForm action={saveProduct} submitLabel={p ? "Save product" : "Create product"} className="space-y-6">
@@ -55,6 +55,7 @@ export function ProductForm({ product, categories }: { product?: Product; catego
               <Field id="basePrice" label="Base price ($)" error={e.basePrice} hint="Leave blank for “price on request”."><Input id="basePrice" inputMode="decimal" defaultValue={centsToInput(p?.basePriceCents)} error={e.basePrice} hasHint /></Field>
               <Field id="leadTimeHours" label="Notice needed (hours)" error={e.leadTimeHours}><Input id="leadTimeHours" inputMode="numeric" defaultValue={p?.leadTimeHours?.toString() ?? ""} error={e.leadTimeHours} /></Field>
               <Field id="maxPerOrder" label="Max per order" error={e.maxPerOrder}><Input id="maxPerOrder" inputMode="numeric" defaultValue={p?.maxPerOrder?.toString() ?? ""} error={e.maxPerOrder} /></Field>
+              <Field id="capacityUnits" label="Capacity units (each)" error={e.capacityUnits} hint="How much of a day's production one of these uses. 0 = doesn't count."><Input id="capacityUnits" inputMode="numeric" defaultValue={p?.capacityUnits?.toString() ?? "1"} error={e.capacityUnits} hasHint /></Field>
               <div className="space-y-3 md:col-span-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
                 <Check name="directPurchase" label="Sell through online checkout" defaultChecked={p?.directPurchase ?? false} hint="Requires a base price." />
                 <Check name="customOrder" label="Offer on the custom-order form" defaultChecked={p?.customOrder ?? false} />
@@ -64,6 +65,18 @@ export function ProductForm({ product, categories }: { product?: Product; catego
               </div>
             </fieldset>
 
+            {collections.length > 0 && (
+              <fieldset className="rounded-xl border border-line p-4">
+                <legend className="px-1 text-sm font-semibold">Collections</legend>
+                <div className="flex flex-wrap gap-4">
+                  {collections.map((c) => (
+                    <label key={c.id} className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" name="collectionIds" value={c.id} defaultChecked={memberOf.includes(c.id)} className="size-4" /> {c.name}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <div className="grid gap-5 md:grid-cols-3">
               <Field id="servings" label="Serves"><Input id="servings" defaultValue={p?.servings ?? ""} /></Field>
               <Field id="sortOrder" label="Sort order" error={e.sortOrder}><Input id="sortOrder" inputMode="numeric" defaultValue={p?.sortOrder?.toString() ?? "0"} /></Field>

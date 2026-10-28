@@ -12,4 +12,6 @@ export const BRAND_ASSETS = {
   mark: "/images/brand/mark.webp",
   /** Default social sharing image (1200×630). */
   ogImage: "/images/brand/og.png",
+  /** PNG badge for email clients that can't show WebP (240×240). */
+  emailLogo: "/images/brand/logo-email.png",
 };

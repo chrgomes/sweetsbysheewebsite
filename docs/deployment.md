@@ -55,14 +55,19 @@ pnpm start               # PORT defaults to 3000
 2. Staging: set `PAYMENTS_PROVIDER=stripe`, `STRIPE_SECRET_KEY=sk_test_…`.
 3. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` for
    `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-   `checkout.session.async_payment_failed`, `checkout.session.expired`; set `STRIPE_WEBHOOK_SECRET=whsec_…`.
+   `checkout.session.async_payment_failed`, `checkout.session.expired`, `refund.created`, `refund.updated`
+   and `refund.failed`; set `STRIPE_WEBHOOK_SECRET=whsec_…`.
 4. Test with Stripe test cards: success, decline, 3-D Secure, and a resent webhook (should show
    `"outcome":"duplicate"`). Confirm orders turn Paid only after the webhook.
-5. Tax: either enter the rate the owner's accountant confirms in **Admin → Settings**, or enable Stripe Tax
-   and set `STRIPE_AUTOMATIC_TAX=true`.
+5. Tax: enter the rate the owner's accountant confirms in **Admin → Settings**. Tax is calculated by the site
+   (on products after discounts, plus delivery) so the order, quote and receipt always agree; Stripe Tax is not
+   used.
 6. Production: swap to live keys and a live-mode webhook, place one real low-value order, refund it.
 
-Refunds are issued in the Stripe dashboard; then mark the order Refunded in the admin.
+Refunds are issued from the order page in the admin (Payments → Refund this payment), which refunds through
+Stripe and updates the order when Stripe confirms. Refunds made directly in the Stripe dashboard are also picked
+up by the `refund.*` webhooks if they belong to a refund started in the admin; otherwise record them in the admin
+too so totals stay correct.
 
 ## Email (Resend)
 
@@ -71,9 +76,11 @@ Refunds are issued in the Stripe dashboard; then mark the order Refunded in the 
    `BUSINESS_NOTIFICATION_EMAIL` (or the contact email in settings).
 3. Submit a test custom request and a test order; check both inboxes and spam folders.
 
-Emails sent: order confirmation (customer), new paid order (business), request acknowledgement
-(customer), new request (business), quote with optional payment link (customer). Failures are logged and
-shown on the request in the admin; nothing is lost.
+Emails sent (all from `src/lib/notifications/templates.ts`, branded and HTML-escaped): order confirmed /
+payment received, new order (business), payment failed, status updates (in production, ready, completed — can
+be switched off), cancellation, refund issued, balance reminder, request received (customer and business),
+quote sent, quote accepted/declined (business), quote expired, and “find my orders” links. Every email goes
+through the outbox: failures retry automatically and are listed in Admin → System health with a retry button.
 
 ## Domain, redirects and SEO
 
@@ -84,11 +91,32 @@ shown on the request in the admin; nothing is lost.
 - After launch: submit `https://<domain>/sitemap.xml` in Google Search Console, watch coverage and 404s
   for a few weeks, and check Core Web Vitals field data.
 
+## Background jobs
+
+Jobs must run every 5–10 minutes in staging and production; without them, missed webhooks aren't recovered,
+date holds from abandoned checkouts linger until expiry, quotes don't expire, balance reminders aren't sent
+and failed emails aren't retried. Pick one:
+
+- **HTTP scheduler** (Vercel Cron, Render cron job, GitHub Actions schedule, uptime pinger with headers): set
+  `CRON_SECRET` to a long random string and `POST https://<domain>/api/cron` with
+  `Authorization: Bearer <CRON_SECRET>`. Returns 404 when the secret is missing or wrong.
+- **Command scheduler** (crontab, Fly machines, Railway cron): run `pnpm jobs:run` with the same environment as
+  the app.
+
+Jobs are idempotent and safe to overlap. Admin → System health → *Run jobs now* runs them on demand.
+
+## Health checks
+
+`GET /api/health` returns `{"status":"ok"}` when the app can reach the database, and 503 otherwise. It reveals
+no configuration. Point the host's health check and an uptime monitor at it.
+
 ## Operations
 
 - Logs are single-line JSON on stdout/stderr (`order.created`, `payment.event`, `inquiry.created`,
-  `email.failed`, `stripe.webhook_rejected`, …). Alert on `email.failed`, `order.amount_mismatch`,
-  `stripe.webhook_failed`.
+  `notification.gave_up`, `jobs.task_failed`, `request.unhandled_error`, …). Alert on `notification.gave_up`,
+  `payment.amount_mismatch`, `stripe.webhook_failed`, `jobs.task_failed` and `request.unhandled_error`.
+  Error pages show a reference (digest) that matches `request.unhandled_error` lines.
+- See [runbook.md](runbook.md) for day-to-day procedures.
 - Back up the database daily and `STORAGE_DIR` (customer uploads).
 - Customer data: orders and requests contain names, emails, phones and addresses. Agree a retention period
   with the owner and publish a privacy policy page (Admin → Site content → About & policies).

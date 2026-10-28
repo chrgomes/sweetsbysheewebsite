@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkFulfillmentDate, earliestFulfillmentDate, isIsoDate, isoWeekday, startOfDayInZone, type FulfillmentRules } from "@/lib/dates";
+import { checkFulfillmentDate, earliestFulfillmentDate, orderingDay, isIsoDate, isoWeekday, startOfDayInZone, type FulfillmentRules } from "@/lib/dates";
 
 const rules: FulfillmentRules = { timeZone: "America/New_York", leadTimeHours: 48, maxAdvanceDays: 60, weekdays: [3, 4, 5, 6], blackoutDates: ["2026-11-26"] };
 // Monday 2 Nov 2026, 10:00 New York (15:00 UTC).
@@ -32,5 +32,17 @@ describe("dates", () => {
   it("finds the earliest bookable date", () => {
     expect(earliestFulfillmentDate(rules, now)).toBe("2026-11-05");
     expect(earliestFulfillmentDate({ ...rules, weekdays: [], maxAdvanceDays: 1, leadTimeHours: 24 * 30 }, now)).toBeNull();
+  });
+  it("applies the daily order cut-off as whole days from the ordering day", () => {
+    const cutoff = { ...rules, weekdays: [], cutoffTime: "14:00" };
+    // Monday 10:00 New York, before a 14:00 cut-off: 2 days' notice → Wednesday.
+    expect(orderingDay(now, "America/New_York", "14:00")).toBe("2026-11-02");
+    expect(checkFulfillmentDate("2026-11-04", cutoff, now).ok).toBe(true);
+    expect(checkFulfillmentDate("2026-11-03", cutoff, now).ok).toBe(false);
+    // Monday 15:00, after the cut-off: counts from Tuesday → Thursday.
+    const late = new Date("2026-11-02T20:00:00Z");
+    expect(orderingDay(late, "America/New_York", "14:00")).toBe("2026-11-03");
+    expect(checkFulfillmentDate("2026-11-04", cutoff, late)).toMatchObject({ ok: false, reason: expect.stringMatching(/after 14:00/) });
+    expect(checkFulfillmentDate("2026-11-05", cutoff, late).ok).toBe(true);
   });
 });

@@ -14,27 +14,35 @@ import { requireAdmin } from "@/lib/auth/session";
 export const metadata = { title: "Edit product" };
 
 export default async function EditProduct({ params, searchParams }: PageProps<"/admin/products/[id]">) {
-  await requireAdmin();
+  await requireAdmin("products:view");
   const { id } = await params;
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [product, categories] = await Promise.all([
+  const [product, categories, collections, memberships] = await Promise.all([
     db().query.products.findFirst({
       where: eq(schema.products.id, id),
       with: { images: { orderBy: (i, { asc }) => [asc(i.sortOrder)] }, options: { orderBy: (o, { asc }) => [asc(o.sortOrder)], with: { values: { orderBy: (v, { asc }) => [asc(v.sortOrder)] } } } },
     }),
     db().query.categories.findMany({ orderBy: [asc(schema.categories.sortOrder)] }),
+    db().query.collections.findMany({ orderBy: [asc(schema.collections.sortOrder), asc(schema.collections.name)], columns: { id: true, name: true } }),
+    db().query.productCollections.findMany({ where: eq(schema.productCollections.productId, id) }),
   ]);
   if (!product) notFound();
   return (
     <>
       <AdminHeader
         title={product.name}
-        actions={product.status === "active" || product.status === "unavailable" ? <Link href={`/products/${product.slug}`} className="text-sm text-berry hover:underline" target="_blank">View on site ↗</Link> : undefined}
+        actions={
+          product.status === "active" || product.status === "unavailable" ? (
+            <Link href={`/products/${product.slug}`} className="text-sm text-berry hover:underline" target="_blank">View on site ↗</Link>
+          ) : (
+            <Link href={`/products/${product.slug}?preview=1`} className="text-sm text-berry hover:underline" target="_blank">Preview ↗</Link>
+          )
+        }
       />
       {sp.created && <div className="mb-6"><FormAlert tone="success">Product created. Add options and photos below.</FormAlert></div>}
       <div className="grid gap-6 2xl:grid-cols-5">
-        <Panel title="Details" className="2xl:col-span-3"><ProductForm product={product} categories={categories} /></Panel>
+        <Panel title="Details" className="2xl:col-span-3"><ProductForm product={product} categories={categories} collections={collections} memberOf={memberships.map((m) => m.collectionId)} /></Panel>
         <div className="space-y-6 2xl:col-span-2">
           <Panel title="Options & prices">
             <AdminForm action={saveOptions} submitLabel="Save options">

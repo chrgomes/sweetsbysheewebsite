@@ -1,8 +1,11 @@
 {
-  "name": "sweets-by-shee",
+  "name": "sweets-by-shyee",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -21,6 +24,7 @@
     "db:seed": "tsx scripts/migration/import-content.ts",
     "db:seed:demo": "tsx scripts/db/seed-demo.ts",
     "admin:create": "tsx scripts/db/create-admin.ts",
+    "jobs:run": "tsx --conditions=react-server scripts/jobs/run.ts",
     "audit:crawl": "tsx scripts/audit/crawl.ts",
     "audit:screenshots": "tsx scripts/audit/screenshots.ts",
     "migrate:assets": "tsx scripts/migration/download-assets.ts",

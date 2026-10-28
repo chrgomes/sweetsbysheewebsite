@@ -27,3 +27,8 @@ export async function closeDb() {
 }
 
 export { schema };
+
+/** A transaction handle, for services that must run inside the caller's transaction. */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+/** Either the shared handle or a transaction. */
+export type DbOrTx = Db | Tx;

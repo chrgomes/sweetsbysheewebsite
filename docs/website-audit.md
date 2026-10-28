@@ -22,7 +22,7 @@ Full log: [`data/audit/crawl-attempts.json`](../data/audit/crawl-attempts.json).
 | `curl` through the session's egress proxy | `https://sweetsbyshee.com/`, `www.`, `/robots.txt`, `/sitemap.xml` | **Blocked** — proxy returned `403` (host not on this environment's network allow-list) |
 | Web fetch tool | `sweetsbyshee.com`, `www.sweetsbyshee.com` | DNS failure (`ENOTFOUND`). The same tool also failed for `example.com`, so this is a tool limitation and **not** evidence the domain is down |
 | Internet Archive | snapshot index for the domain | Unavailable from this environment |
-| Web search | the domain, "Sweets by Shee" (the business name was later confirmed as "Sweets by Shyee"), likely social handles | No indexed pages for the domain or business. Results were unrelated bakeries with similar names; **none of their content was used** |
+| Web search | the domain and the business name (first searched with a misspelling; a later search for "Sweets by Shyee" also found nothing), likely social handles | No indexed pages for the domain or business. Results were unrelated bakeries with similar names; **none of their content was used** |
 | `pnpm audit:crawl` | `https://sweetsbyshee.com/` | Blocked by the proxy; crawler exited cleanly (code 2) |
 
 Because nothing could be fetched, this audit cannot state how many pages the site has, which

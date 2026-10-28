@@ -23,7 +23,7 @@ function CategoryFields({ c }: { c?: typeof schema.categories.$inferSelect }) {
 }
 
 export default async function CategoriesPage() {
-  await requireAdmin();
+  await requireAdmin("products:view");
   const cats = await db().query.categories.findMany({ orderBy: [asc(schema.categories.sortOrder), asc(schema.categories.name)] });
   return (
     <>

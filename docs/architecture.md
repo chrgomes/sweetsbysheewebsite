@@ -9,7 +9,8 @@ API service, queue or cache: a small bakery's traffic doesn't justify them.
 Browser ──► Next.js (App Router, Node runtime)
               ├─ Server Components: pages read the DB directly through src/lib/*
               ├─ Server Actions: cart quote, checkout, custom request, admin mutations
-              ├─ Route handlers: /api/webhooks/stripe, /media/[key], /admin/attachments/[id], sitemap, robots
+              ├─ Route handlers: /api/webhooks/stripe, /api/cron, /api/health, /media/[key],
+              │                  /admin/attachments/[id], /admin/orders-export, sitemap, robots
               └─ proxy.ts: fast signed-out redirect for /admin, no-store headers
             ├─► PostgreSQL (Drizzle ORM)
             ├─► File storage (STORAGE_DIR: private/ for customer uploads, media/ for owner images)
@@ -51,57 +52,114 @@ check field data in Search Console after launch.
 
 ## Data model
 
-`src/db/schema.ts` (all money in integer cents):
+`src/db/schema.ts` (all money in integer cents; migrations `drizzle/0000_*` and `0001_operations.sql`):
 
-- **categories**, **products** (status: draft/active/unavailable/archived; `directPurchase`, `customOrder`,
-  lead time, pickup/delivery eligibility, allergens, SEO, `sourceUrl`, `migrationStatus`),
-  **product_images**, **product_options** → **product_option_values** (price delta, availability).
-- **orders** (reference, status, customer, fulfilment, totals, tax rate snapshot, payment session/intent,
-  hashed access token, optional `sourceInquiryId`) → **order_items** (name/options/price snapshots).
-- **payment_events** — provider event ids already processed (idempotency).
-- **inquiries** (custom requests: event, product type, servings, design, fulfilment, allergies, quote, statuses,
-  email delivery status) → **inquiry_attachments** (private storage keys).
-- **faqs**, **pages** (about/policies), **gallery_items**, **testimonials** (`verified` + `published`).
-- **settings** — one JSON document validated by `siteSettingsSchema` (business details and commerce rules).
-- **admin_users** (owner/staff), **admin_sessions** (hashed tokens), **audit_log**, **rate_limits**.
+- **categories**, **collections** (seasonal/themed, optional date window, homepage flag) ↔ **product_collections**,
+  **products** (status, `directPurchase`, `customOrder`, lead time, `capacityUnits`, `publishedAt` for “New”,
+  pickup/delivery eligibility, allergens, SEO, migration fields), **product_images**,
+  **product_options** (`kind` = choice | text; text options have `maxLength`, a surcharge and help text)
+  → **product_option_values**.
+- **customers** — one row per email (lower-cased), linking a person's orders and requests. No passwords or
+  accounts; used for staff lookup and data-erasure requests (`erasedAt`).
+- **orders** — reference, `status` (pending, confirmed, in_production, ready, completed, cancelled, on_hold)
+  and a separate `paymentStatus` (unpaid, deposit_paid, paid, partially_refunded, refunded, failed), fulfilment
+  date + optional window, totals with tax-rate snapshot, discount, deposit, `amountPaidCents`,
+  `amountRefundedCents`, `sourceQuoteId` (unique: one order per quote) → **order_items** (snapshots).
+- **payments** — the ledger: one row per checkout attempt or recorded offline payment (kind full | deposit |
+  balance | offline; status pending | succeeded | failed | expired; provider session/payment ids; refunded
+  amount). Order totals paid/refunded are always recomputed from this table. **refunds** (pending | succeeded |
+  failed, reason, provider refund id). **payment_events** — provider event ids already processed (idempotency).
+- **inquiries** (custom requests, preferred contact, status: new → reviewing → quote_prepared →
+  awaiting_customer → deposit_required → confirmed → completed, or declined/expired/cancelled)
+  → **inquiry_attachments** (private storage keys) and **quotes** (versioned, draft | sent | accepted | declined |
+  expired | withdrawn, expiry, deposit, capacity units) → **quote_lines**.
+- **discounts** (percent in basis points or fixed cents, minimum, dates, total and per-customer limits)
+  → **discount_redemptions** (pending | confirmed | void; unique per order).
+- **capacity_reservations** (units per order and date; held with expiry, or confirmed) and
+  **capacity_overrides** (per-day capacity with a required reason).
+- **notifications** — email outbox: unique `dedupeKey`, attempts, backoff, last error, related order/request.
+- **faqs**, **pages**, **gallery_items**, **testimonials** (`verified` + `published`).
+- **settings** — one JSON document validated by `siteSettingsSchema` (business details, commerce rules,
+  capacity, cut-off, windows, deposits, quote validity, merchandising thresholds).
+- **admin_users** (role: owner | admin | order_manager | production | reporting), **admin_sessions**,
+  **audit_log**, **rate_limits**.
 
 ## Ordering flows
 
 ### Online checkout
 
-1. The cart lives in `localStorage` and holds only product ids, option-value ids and quantities.
-2. The cart page calls `quoteAction`, which loads products from the DB and prices every line
-   (`src/lib/pricing.ts`): purchasable status, required options, one value per option, value availability,
-   options belonging to the product, quantity limits.
-3. `checkoutAction` validates contact and fulfilment details, re-quotes, checks pickup/delivery eligibility
-   and the date (`checkFulfillmentDate`: lead time from the strictest product, open weekdays, blackout dates,
-   booking window, in the bakery's timezone), computes tax and delivery from settings, saves a
-   `pending_payment` order with item snapshots, and creates a hosted checkout session (Stripe idempotency
-   key = order id).
-4. Stripe redirects back to `/order/[reference]?t=<token>`, which shows "Confirming your payment…" and polls.
-5. `POST /api/webhooks/stripe` verifies the signature on the raw body and calls `handlePaymentEvent`, which
-   in one transaction records the event id (primary key → duplicates are no-ops) and moves the order
-   `pending_payment → paid` only if it is still pending. Amount mismatches are flagged for review.
-   Confirmation emails go out once.
-6. Admins progress orders (`paid → in_progress → ready → completed`, or cancel/refund) through an allow-list of
-   transitions. "Paid" can never be set by hand.
+1. The cart lives in `localStorage` and holds only product ids, option-value ids, personalisation text and
+   quantities. Prices shown anywhere come from the server.
+2. `quoteAction` prices every line from the database (`src/lib/pricing.ts`): purchasable status, required
+   options, option ownership and availability, text length limits and surcharges, quantity limits, and an
+   optional discount code (`src/lib/discounts.ts`). Tax applies to subtotal − discount + delivery.
+3. `placeOrder` (in one transaction) re-quotes, validates the date (lead time from the strictest product,
+   daily cut-off, weekdays, blackouts, booking window, in the bakery's timezone) and time window, upserts the
+   customer, reserves the discount (row lock, so limits hold under concurrency), **holds capacity**
+   (`pg_advisory_xact_lock` per date; 65-minute hold), inserts the order, items and a pending payment, then
+   creates a hosted checkout session (idempotency key = payment id). If anything fails, it all rolls back.
+4. The provider redirects to `/order/[reference]?t=<token>` (an HMAC of the order id), which waits for
+   confirmation. **The redirect never marks anything paid.**
+5. `POST /api/webhooks/stripe` verifies the signature and calls `handlePaymentEvent`, which records the event id
+   (duplicates are no-ops), updates the payment, recomputes the order's payment status, and — on the first
+   successful payment — confirms the order, the capacity hold and the discount, and queues emails. Unknown
+   sessions return 500 so the provider retries; failed/expired checkouts cancel the unpaid order and release
+   its date and code.
+6. Missed webhooks are recovered by the `payments` job, which asks the provider about checkouts still pending
+   after 15 minutes.
 
-Checkout is available only when `checkoutReadiness()` passes: payment provider configured, tax rate set,
-pickup or delivery enabled (with a fee if delivery), fulfilment weekdays chosen, and the owner's switch on.
+### Custom requests and quotes
 
-### Custom-order requests
+1. `/custom-orders` is a five-step form (about you, event, design, fulfilment, review). Each step validates with
+   the browser's constraint API before advancing; the server validates everything again. Progress (not photos)
+   is kept in `sessionStorage` for that tab only and cleared after sending.
+2. `submitInquiry` applies the honeypot, signed timing token, per-IP rate limit, Zod validation, notice period
+   and magic-byte upload checks. `createInquiry` stores photos privately, links the customer, and queues the
+   acknowledgement and business emails. The customer gets a private status link `/requests/[ref]?t=`.
+3. Staff build a **quote** with line items, delivery fee, deposit (default from settings) and capacity units.
+   Sending warns if the date is full (override needs a tick), withdraws any earlier sent version, and emails a
+   private link `/quotes/[ref]?t=`. Quotes expire after the configured validity.
+4. The customer accepts (or declines with an optional reason). Acceptance creates exactly one order
+   (`orders.source_quote_id` is unique), holds the date, and starts payment of the deposit or the total. The
+   order confirms only when that payment succeeds; the balance can be paid later through the order page or
+   recorded by staff, and a reminder is sent `balanceDueDaysBefore` days ahead.
 
-1. `/custom-orders` renders a form with a signed timestamp token and a honeypot field.
-2. `submitInquiry` rejects bots (honeypot, forged/too-fast/expired token), rate-limits per IP (5/hour),
-   validates with Zod (conditional delivery address; acknowledgement required), checks the date against
-   minimum notice/blackouts, and validates uploads by magic bytes, count and size.
-3. `createInquiry` writes files to private storage, inserts the inquiry and attachments in a transaction
-   (removing files if the insert fails), then emails the business and the customer. Email failures are
-   recorded on the inquiry (`businessEmailStatus`, `customerEmailStatus`) and never lose the request.
-4. The customer sees `/custom-orders/thanks?ref=REQ-XXXX-XXXX`.
-5. Admins move requests through new → reviewing → quoted → accepted/declined → completed, record a quote and
-   notes, and can **convert** an agreed quote into a payable order (agreed price + tax/delivery from settings,
-   optional emailed payment link). Conversion is audited and can happen only once.
+### Order lifecycle
+
+`pending → confirmed → in_production → ready → completed`, with `on_hold` (resumable) and `cancelled`
+(reason required; releases capacity and the discount). `pending → confirmed` happens only through a recorded
+payment. Completion requires full payment. Production staff may only move orders forward; other changes need
+`orders:manage`. Customers are emailed on status changes when `notifyStatusChanges` is on.
+
+### Payments, refunds and offline payments
+
+Staff with `orders:payments` can record money received outside the website (method + note, audited); it can
+confirm an order. Staff with `orders:refund` refund all or part of any succeeded payment: provider payments are
+refunded through the provider (idempotency key = refund id) and settle from the API response or the refund
+webhook, whichever arrives first; offline payments record a manual refund. Totals are recomputed from the
+ledger after every change.
+
+### Capacity
+
+Each product has `capacityUnits` (default 1). A day's capacity is `dailyCapacityUnits` or a per-day override.
+Held + confirmed units may not exceed it; the check and insert run under a per-date advisory lock, so
+concurrent checkouts can't overbook. Expired holds are released by a job (and ignored by the check anyway).
+A late payment after a hold expired still confirms the order — the money is taken — and the calendar shows the
+day as over capacity for staff to resolve.
+
+### Notifications and jobs
+
+Emails are written to the `notifications` outbox inside the same transaction as the change that causes them,
+with a de-duplication key (`order:<id>:confirmed`, …), then delivered immediately after commit. Failures retry
+with exponential backoff up to 5 attempts and appear in Admin → System health and on the order/request, with a
+retry button. `runJobs()` (payments recovery, hold expiry, quote expiry, balance reminders, email retries,
+rate-limit cleanup) is idempotent and runs from `POST /api/cron` (bearer `CRON_SECRET`) or `pnpm jobs:run`.
+
+### Merchandising
+
+“New” badges and New arrivals come from `publishedAt` (set the first time a product goes active) within
+`newArrivalDays`. Bestsellers require at least `bestsellerMinOrders` paid orders in the last 90 days, so they
+stay hidden until there is real sales history. Collections show only while active and within their dates.
 
 ## Security
 
@@ -110,15 +168,25 @@ pickup or delivery enabled (with a fee if delivery), fulfilment weekdays chosen,
   (N=2¹⁷). Sessions are random 256-bit tokens stored hashed, `HttpOnly`, `SameSite=Lax`, `Secure` in production,
   7-day expiry; deactivating a user or resetting a password revokes sessions. Login is rate-limited per IP and
   per account with constant-time comparison against a dummy hash for unknown emails.
-- **Authorisation**: `requireAdmin()` in every admin page and action; owner-only settings, team and activity log.
-  `proxy.ts` is an optimisation, not the security boundary.
+- **Authorisation**: role-based permissions (`src/lib/permissions.ts`). Every admin page, Server Action and admin
+  route handler calls `requireAdmin(permission)` / `adminCan(permission)`; navigation is filtered for
+  convenience only. Owner: everything. Admin: everything except team accounts. Order manager: orders,
+  payments, requests, quotes, customers, calendar. Production: view orders/calendar and move orders forward.
+  Reporting: read-only views, reports and exports. `proxy.ts` is an optimisation, not the security boundary.
+- **Customer links**: order, request and quote pages require an HMAC token derived from the record id and
+  `APP_SECRET` (constant-time compare). “Find my orders” emails fresh links to the address on file and never
+  reveals whether an email has orders.
+- **Exports**: CSV export requires `orders:export`, is audited, and neutralises spreadsheet formulas.
 - **CSRF**: Server Actions enforce same-origin; the only cookie-authenticated route handler is a GET.
 - **XSS**: React escaping; CMS and scraped text rendered as plain text; JSON-LD serialised with `<` escaped;
   served uploads use `nosniff` and a sandboxing CSP.
 - **Uploads**: content-sniffed, size/count limited, random storage keys, private area outside `public/`,
   admin-only route; owner images re-encoded by sharp (EXIF/GPS stripped).
 - **Payments**: hosted checkout (no card data touches the server), webhook signature verification,
-  idempotent processing, amount check, order access only with an unguessable token.
+  idempotent processing, amount check, provider idempotency keys for checkouts and refunds.
+- **Privacy**: customers can be erased on request (Admin → Customers): names, contact details, addresses,
+  free text, photos and email copies are removed; amounts stay for accounting. Refused while an order is open.
+  Logs never include card data or message bodies; request logging records the path only.
 - **Headers**: `X-Frame-Options: DENY`, `nosniff`, referrer policy, permissions policy; admin pages `no-store` and `noindex`.
 - **Secrets**: server-only environment variables validated at start-up; production refuses the fake payment
   provider, the memory mailer and the default `APP_SECRET`.
@@ -128,6 +196,6 @@ pickup or delivery enabled (with a fee if delivery), fulfilment weekdays chosen,
 
 | Suite | Command | Covers |
 | --- | --- | --- |
-| Unit | `pnpm test` | money, dates/timezones, pricing rules, upload sniffing, spam tokens, passwords, references, redirects, HTML extraction, robots |
-| Integration | `pnpm test` | quoting, order placement, tax/delivery, lead time, readiness gate, webhook idempotency (incl. concurrent duplicates), Stripe signatures, amount mismatch, order access, status transitions, inquiries, email failure handling, conversion, the full migration pipeline against a fixture site |
-| E2E | `pnpm test:e2e` | internal links, catalogue and SEO tags, option enforcement, full purchase with payment, failed payment, tampered cart, custom request with upload and file rejection, admin login/authorisation, private attachments, quote → order, product creation with options and photo, settings validation, keyboard skip link, mobile menu, no horizontal scroll |
+| Unit | `pnpm test` | money, dates/timezones/cut-off, pricing (options, text surcharges, discounts, rounding), permissions matrix, upload sniffing, spam tokens, passwords, references, redirects, HTML extraction, robots |
+| Integration | `pnpm test` | quoting, order placement, tax/delivery/windows, readiness gate, webhook idempotency (concurrent duplicates, out-of-order events, retry for unknown sessions), refunds and offline payments, status transitions and permissions, capacity concurrency (6 racers → 1 wins), hold expiry, overrides, discount limits under concurrency, notification de-dupe/retry/escaping, jobs, quotes (send, versioning, accept → deposit → balance, decline, expiry, full date), customer links, data erasure, merchandising and sales metrics, the migration pipeline |
+| E2E | `pnpm test:e2e` | internal links, catalogue/SEO, collections/new arrivals, option enforcement, personalisation and discount pricing, full purchase with payment, failed payment, tampered cart, multi-step request (step validation, saved progress, review, upload rejection), staff quote → customer accepts → deposit → balance → production, product options/collections/draft preview, discount/calendar/export admin, production-role restrictions, signed-out protection, keyboard, mobile layout |

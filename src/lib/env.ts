@@ -17,7 +17,6 @@ const schema = z
     PAYMENTS_PROVIDER: z.enum(["none", "stripe", "fake"]).default("none"),
     STRIPE_SECRET_KEY: z.string().optional(),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
-    STRIPE_AUTOMATIC_TAX: z.stringbool().default(false),
 
     /** "resend" sends real email; "console" logs it; "memory" keeps it in-process (tests). */
     EMAIL_PROVIDER: z.enum(["console", "resend", "memory"]).default("console"),
@@ -33,6 +32,12 @@ const schema = z
     /** Secret used to hash IPs for rate limiting and to sign short-lived tokens. */
     APP_SECRET: z.string().min(16).default("dev-only-insecure-secret-change-me"),
     TRUST_PROXY_HEADERS: z.stringbool().default(true),
+    /** Bearer token the host's scheduler sends to POST /api/cron. Unset = the endpoint is disabled. */
+    CRON_SECRET: z
+      .string()
+      .optional()
+      .transform((v) => v || undefined)
+      .pipe(z.string().min(24, "CRON_SECRET must be at least 24 characters").optional()),
   })
   .superRefine((v, ctx) => {
     if (v.NODE_ENV === "production" && v.APP_ENV === "production") {

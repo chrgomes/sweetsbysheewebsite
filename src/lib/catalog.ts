@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import type { PricedProduct } from "./pricing";
 
@@ -43,9 +43,10 @@ export async function listPublicProducts(opts: { categoryId?: string; featuredOn
 
 export type ProductCardData = Awaited<ReturnType<typeof listPublicProducts>>[number];
 
-export async function getProductBySlug(slug: string) {
+/** `preview` includes hidden (draft/archived) products; only pass it after an admin permission check. */
+export async function getProductBySlug(slug: string, opts: { preview?: boolean } = {}) {
   return db().query.products.findFirst({
-    where: and(eq(products.slug, slug), inArray(products.status, [...PUBLIC_STATUSES])),
+    where: and(eq(products.slug, slug), opts.preview ? undefined : inArray(products.status, [...PUBLIC_STATUSES])),
     with: {
       category: true,
       images: { orderBy: (i, { asc }) => [asc(i.sortOrder)] },
@@ -93,11 +94,15 @@ export async function loadPricedProducts(ids: string[]): Promise<Map<string, Pri
         pickupEligible: p.pickupEligible,
         deliveryEligible: p.deliveryEligible,
         maxPerOrder: p.maxPerOrder,
+        capacityUnits: p.capacityUnits,
         image: p.images[0] ? { src: p.images[0].src, alt: p.images[0].alt } : null,
         options: p.options.map((o) => ({
           id: o.id,
           name: o.name,
+          kind: o.kind,
           required: o.required,
+          maxLength: o.maxLength,
+          priceDeltaCents: o.priceDeltaCents,
           values: o.values.map((v) => ({ id: v.id, label: v.label, priceDeltaCents: v.priceDeltaCents, available: v.available })),
         })),
       } satisfies PricedProduct,
@@ -115,15 +120,89 @@ export async function listCustomOrderProducts() {
 }
 
 /** Lowest price a customer could pay for a product, for "From $X" labels. */
-export function fromPrice(p: { basePriceCents: number | null; options?: { required: boolean; values: { priceDeltaCents: number; available: boolean }[] }[] }) {
+export function fromPrice(p: {
+  basePriceCents: number | null;
+  options?: { kind?: "choice" | "text"; required: boolean; priceDeltaCents?: number; values: { priceDeltaCents: number; available: boolean }[] }[];
+}) {
   if (p.basePriceCents === null) return null;
   let min = p.basePriceCents;
   let hasRange = false;
   for (const o of p.options ?? []) {
+    if (o.kind === "text") {
+      if (o.required) min += o.priceDeltaCents ?? 0;
+      else if (o.priceDeltaCents) hasRange = true;
+      continue;
+    }
     const deltas = o.values.filter((v) => v.available).map((v) => v.priceDeltaCents);
     if (!deltas.length) continue;
     if (new Set(deltas).size > 1) hasRange = true;
     if (o.required) min += Math.min(...deltas);
   }
   return { cents: min, isFrom: hasRange };
+}
+
+/* Merchandising ----------------------------------------------------------- */
+
+/** Collections that are active and in season on `today` (YYYY-MM-DD), with their public products. */
+export async function listActiveCollections(today: string, opts: { featuredOnly?: boolean } = {}) {
+  const cols = await db().query.collections.findMany({
+    where: and(
+      eq(schema.collections.active, true),
+      opts.featuredOnly ? eq(schema.collections.featured, true) : undefined,
+      or(isNull(schema.collections.startsOn), lte(schema.collections.startsOn, today)),
+      or(isNull(schema.collections.endsOn), gte(schema.collections.endsOn, today)),
+    ),
+    orderBy: [asc(schema.collections.sortOrder), asc(schema.collections.name)],
+    with: {
+      products: {
+        orderBy: (pc, o) => [o.asc(pc.sortOrder)],
+        with: { product: { with: { category: true, images: { orderBy: (i, o) => [o.asc(i.sortOrder)], limit: 1 }, options: { with: { values: true } } } } },
+      },
+    },
+  });
+  return cols
+    .map((c) => ({ ...c, products: c.products.map((pc) => pc.product).filter((p) => PUBLIC_STATUSES.includes(p.status as (typeof PUBLIC_STATUSES)[number])) }))
+    .filter((c) => c.products.length > 0);
+}
+
+export async function getCollectionBySlug(slug: string, today: string) {
+  return (await listActiveCollections(today)).find((c) => c.slug === slug) ?? null;
+}
+
+/** Products first published within the last `days` days. Derived from data, never hand-labelled. */
+export async function listNewArrivals(days: number, limit = 6) {
+  if (days <= 0) return [];
+  const since = new Date(Date.now() - days * 86_400_000);
+  return db().query.products.findMany({
+    where: and(inArray(products.status, ["active"]), gte(products.publishedAt, since)),
+    with: { category: true, images: { orderBy: (i, o) => [o.asc(i.sortOrder)], limit: 1 }, options: { with: { values: true } } },
+    orderBy: [desc(products.publishedAt)],
+    limit,
+  });
+}
+
+/**
+ * Bestsellers: products with at least `minOrders` paid orders in the last 90
+ * days, ranked by paid order count. Empty until there's real sales history.
+ */
+export async function listBestsellers(minOrders: number, limit = 6) {
+  const since = new Date(Date.now() - 90 * 86_400_000);
+  const ranked = await db()
+    .select({ productId: schema.orderItems.productId, orders: sql<number>`count(distinct ${schema.orderItems.orderId})::int` })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orders.id, schema.orderItems.orderId))
+    .where(and(inArray(schema.orders.paymentStatus, ["deposit_paid", "paid"]), gte(schema.orders.createdAt, since)))
+    .groupBy(schema.orderItems.productId)
+    .having(sql`count(distinct ${schema.orderItems.orderId}) >= ${minOrders}`)
+    .orderBy(sql`count(distinct ${schema.orderItems.orderId}) desc`)
+    .limit(limit);
+  const ids = ranked.map((r) => r.productId).filter((x): x is string => !!x);
+  if (!ids.length) return [];
+  const rows = await db().query.products.findMany({ where: and(inArray(products.id, ids), eq(products.status, "active")), with: { category: true, images: { orderBy: (i, o) => [o.asc(i.sortOrder)], limit: 1 }, options: { with: { values: true } } } });
+  return ids.map((id) => rows.find((r) => r.id === id)).filter((r): r is (typeof rows)[number] => !!r);
+}
+
+/** Cut-off (ms since epoch) for the "New" badge, or undefined when the badge is off. */
+export function newSince(days: number, now = Date.now()): number | undefined {
+  return days > 0 ? now - days * 86_400_000 : undefined;
 }

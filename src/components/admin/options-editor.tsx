@@ -5,14 +5,23 @@ import { Button } from "@/components/ui/button";
 import { centsToInput, parseMoneyInput } from "@/lib/money";
 
 type Value = { id?: string; label: string; price: string; available: boolean };
-type Option = { id?: string; name: string; required: boolean; values: Value[] };
+type Option = { id?: string; name: string; kind: "choice" | "text"; required: boolean; maxLength: string; surcharge: string; helpText: string; values: Value[] };
 
-export type EditorOption = { id: string; name: string; required: boolean; values: { id: string; label: string; priceDeltaCents: number; available: boolean }[] };
+export type EditorOption = {
+  id: string;
+  name: string;
+  kind: "choice" | "text";
+  required: boolean;
+  maxLength: number | null;
+  priceDeltaCents: number;
+  helpText: string | null;
+  values: { id: string; label: string; priceDeltaCents: number; available: boolean }[];
+};
 
 /** Edits product options and serialises them into a hidden "options" field for the Server Action. */
 export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
   const [options, setOptions] = useState<Option[]>(() =>
-    initial.map((o) => ({ id: o.id, name: o.name, required: o.required, values: o.values.map((v) => ({ id: v.id, label: v.label, price: centsToInput(v.priceDeltaCents), available: v.available })) })),
+    initial.map((o) => ({ id: o.id, name: o.name, kind: o.kind, required: o.required, maxLength: o.maxLength?.toString() ?? "", surcharge: o.priceDeltaCents ? centsToInput(o.priceDeltaCents) : "", helpText: o.helpText ?? "", values: o.values.map((v) => ({ id: v.id, label: v.label, price: centsToInput(v.priceDeltaCents), available: v.available })) })),
   );
   const update = (i: number, patch: Partial<Option>) => setOptions((os) => os.map((o, k) => (k === i ? { ...o, ...patch } : o)));
   const updateValue = (i: number, j: number, patch: Partial<Value>) => update(i, { values: options[i].values.map((v, k) => (k === j ? { ...v, ...patch } : v)) });
@@ -20,8 +29,12 @@ export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
     options.map((o) => ({
       ...(o.id ? { id: o.id } : {}),
       name: o.name,
+      kind: o.kind,
       required: o.required,
-      values: o.values.map((v) => {
+      maxLength: o.kind === "text" ? Number(o.maxLength) || null : null,
+      priceDeltaCents: o.kind === "text" ? (parseMoneyInput(o.surcharge || "0") ?? 0) : 0,
+      helpText: o.helpText.trim() || null,
+      values: (o.kind === "text" ? [] : o.values).map((v) => {
         const neg = v.price.trim().startsWith("-");
         const cents = parseMoneyInput(v.price.replace("-", "") || "0") ?? 0;
         return { ...(v.id ? { id: v.id } : {}), label: v.label, priceDeltaCents: neg ? -cents : cents, available: v.available };
@@ -42,11 +55,35 @@ export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
               <span className="sr-only">Option name</span>
               <input className={field} placeholder="e.g. Size" value={o.name} onChange={(e) => update(i, { name: e.target.value })} />
             </label>
+            <label className="text-sm">
+              <span className="sr-only">Option type</span>
+              <select className={field} value={o.kind} onChange={(e) => update(i, { kind: e.target.value as Option["kind"] })}>
+                <option value="choice">Choices</option>
+                <option value="text">Personalised text</option>
+              </select>
+            </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={o.required} onChange={(e) => update(i, { required: e.target.checked })} className="size-4" /> Customer must choose
+              <input type="checkbox" checked={o.required} onChange={(e) => update(i, { required: e.target.checked })} className="size-4" /> {o.kind === "text" ? "Required" : "Customer must choose"}
             </label>
             <button type="button" className="ml-auto text-sm text-danger hover:underline" onClick={() => setOptions((os) => os.filter((_, k) => k !== i))}>Remove option</button>
           </div>
+          <label className="mt-3 block text-sm">
+            <span className="text-xs text-ink-muted">Help text shown to customers</span>
+            <input className={`${field} mt-1 w-full`} maxLength={200} value={o.helpText} placeholder={o.kind === "text" ? "e.g. Shown in piped lettering on top" : ""} onChange={(e) => update(i, { helpText: e.target.value })} />
+          </label>
+          {o.kind === "text" ? (
+            <div className="mt-3 flex flex-wrap gap-4 text-sm">
+              <label>
+                <span className="block text-xs text-ink-muted">Character limit</span>
+                <input className={`${field} w-28`} inputMode="numeric" value={o.maxLength} placeholder="e.g. 30" onChange={(e) => update(i, { maxLength: e.target.value })} />
+              </label>
+              <label>
+                <span className="block text-xs text-ink-muted">Extra charge ($)</span>
+                <input className={`${field} w-28`} inputMode="decimal" value={o.surcharge} placeholder="0.00" onChange={(e) => update(i, { surcharge: e.target.value })} />
+              </label>
+            </div>
+          ) : (
+          <>
           <table className="mt-3 w-full text-sm">
             <thead className="text-left text-xs text-ink-muted"><tr><th className="py-1 font-medium">Choice</th><th className="py-1 font-medium">Price change ($)</th><th className="py-1 font-medium">Available</th><th /></tr></thead>
             <tbody>
@@ -61,12 +98,14 @@ export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
             </tbody>
           </table>
           <button type="button" className="mt-2 text-sm text-berry hover:underline" onClick={() => update(i, { values: [...o.values, { label: "", price: "", available: true }] })}>+ Add choice</button>
+          </>
+          )}
         </fieldset>
       ))}
-      <Button type="button" variant="secondary" size="sm" onClick={() => setOptions((os) => [...os, { name: "", required: true, values: [{ label: "", price: "", available: true }] }])}>
+      <Button type="button" variant="secondary" size="sm" onClick={() => setOptions((os) => [...os, { name: "", kind: "choice", required: true, maxLength: "", surcharge: "", helpText: "", values: [{ label: "", price: "", available: true }] }])}>
         + Add option
       </Button>
-      <p className="text-xs text-ink-muted">Price changes are added to the base price. Use a minus sign for a discount.</p>
+      <p className="text-xs text-ink-muted">Price changes are added to the base price. Use a minus sign for a discount. Personalised text is checked against its character limit on the server.</p>
     </div>
   );
 }

@@ -62,7 +62,20 @@ export type FulfillmentRules = {
   maxAdvanceDays: number;
   weekdays: number[];
   blackoutDates: string[];
+  /** "HH:MM" local. When set, lead time counts in whole days from the ordering day, which is tomorrow after the cut-off. */
+  cutoffTime?: string | null;
 };
+
+/** Local wall-clock time "HH:MM" of `instant` in `timeZone`. */
+export function timeInZone(instant: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(instant);
+}
+
+/** With a cut-off, the calendar day an order counts as placed on: today before the cut-off, tomorrow after it. */
+export function orderingDay(now: Date, timeZone: string, cutoffTime: string): string {
+  const today = dateInZone(now, timeZone);
+  return timeInZone(now, timeZone) < cutoffTime ? today : addDays(today, 1);
+}
 
 export type DateCheck = { ok: true } | { ok: false; reason: string };
 
@@ -73,9 +86,18 @@ export type DateCheck = { ok: true } | { ok: false; reason: string };
  */
 export function checkFulfillmentDate(isoDate: string, rules: FulfillmentRules, now = new Date()): DateCheck {
   if (!isIsoDate(isoDate)) return { ok: false, reason: "Please choose a valid date." };
-  const start = startOfDayInZone(isoDate, rules.timeZone);
-  if (start.getTime() < now.getTime() + rules.leadTimeHours * 3_600_000) {
-    return { ok: false, reason: `Please allow at least ${describeHours(rules.leadTimeHours)} notice.` };
+  if (rules.cutoffTime) {
+    // "Order by HH:MM, N days ahead": lead time counts in whole days from the ordering day.
+    const earliest = addDays(orderingDay(now, rules.timeZone, rules.cutoffTime), Math.ceil(rules.leadTimeHours / 24));
+    if (isoDate < earliest) {
+      return { ok: false, reason: `Please allow at least ${describeHours(rules.leadTimeHours)} notice (orders after ${rules.cutoffTime} count from the next day).` };
+    }
+  } else {
+    // Otherwise the fulfilment day must start at least the lead time from now.
+    const start = startOfDayInZone(isoDate, rules.timeZone);
+    if (start.getTime() < now.getTime() + rules.leadTimeHours * 3_600_000) {
+      return { ok: false, reason: `Please allow at least ${describeHours(rules.leadTimeHours)} notice.` };
+    }
   }
   const today = dateInZone(now, rules.timeZone);
   if (isoDate > addDays(today, rules.maxAdvanceDays)) {
@@ -116,4 +138,21 @@ export function formatDate(isoDate: string): string {
 
 export function formatDateTime(d: Date, timeZone?: string): string {
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone }).format(d);
+}
+
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function clock(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const suffix = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return m ? `${h12}:${String(m).padStart(2, "0")} ${suffix}` : `${h12} ${suffix}`;
+}
+
+/** One line per opening period, e.g. "Mon 9 am – 5 pm". Day 1 = Monday. */
+export function formatBusinessHours(hours: { day: number; open: string; close: string }[]): string {
+  return [...hours]
+    .sort((a, b) => a.day - b.day || a.open.localeCompare(b.open))
+    .map((h) => `${WEEKDAYS[h.day - 1]} ${clock(h.open)} – ${clock(h.close)}`)
+    .join("\n");
 }

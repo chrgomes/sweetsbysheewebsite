@@ -59,6 +59,7 @@ export default async function CustomOrdersPage({ searchParams }: PageProps<"/cus
                 minNoticeDays: settings.customOrderMinNoticeDays,
                 deliveryEnabled: settings.deliveryEnabled,
                 deliveryArea: settings.deliveryArea,
+                askBudget: settings.askBudget,
                 maxFiles: env().MAX_UPLOAD_FILES,
                 maxMb: env().MAX_UPLOAD_MB,
                 notice: settings.customOrderNotice,

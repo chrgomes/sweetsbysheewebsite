@@ -7,11 +7,12 @@ import { db, schema } from "@/db";
 import { env } from "@/lib/env";
 import { randomToken, sha256 } from "@/lib/tokens";
 import type { Actor } from "@/lib/audit";
+import { can, type Permission, type Role } from "@/lib/permissions";
 
 export const SESSION_COOKIE = "sbs_admin";
 const SESSION_DAYS = 7;
 
-export type AdminRole = "owner" | "staff";
+export type AdminRole = Role;
 export type AdminUser = { id: string; email: string; name: string; role: AdminRole };
 
 export async function createSession(userId: string) {
@@ -54,12 +55,21 @@ export const getAdmin = cache(async (): Promise<AdminUser | null> => {
   return { id: u.id, email: u.email, name: u.name, role: u.role };
 });
 
-/** Use at the top of every admin page and Server Action. Redirects to login when signed out. */
-export async function requireAdmin(role?: AdminRole): Promise<AdminUser> {
+/**
+ * Use at the top of every admin page and Server Action. Redirects to login when
+ * signed out, and to the dashboard when the role lacks the permission.
+ */
+export async function requireAdmin(permission?: Permission): Promise<AdminUser> {
   const admin = await getAdmin();
   if (!admin) redirect("/admin/login");
-  if (role === "owner" && admin.role !== "owner") redirect("/admin?denied=1");
+  if (permission && !can(admin.role, permission)) redirect("/admin?denied=1");
   return admin;
+}
+
+/** For Server Actions that return errors instead of redirecting. */
+export async function adminCan(permission: Permission): Promise<AdminUser | null> {
+  const admin = await getAdmin();
+  return admin && can(admin.role, permission) ? admin : null;
 }
 
 export function actorFor(admin: AdminUser): Actor {

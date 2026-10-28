@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ButtonLink } from "@/components/ui/button";
 import { Container, SectionHeading } from "@/components/ui/container";
+import { formatBusinessHours } from "@/lib/dates";
 import { getSettings } from "@/lib/settings";
 
 export const metadata: Metadata = {
@@ -15,7 +16,7 @@ export default async function ContactPage() {
     ...(s.contactEmail ? [{ label: "Email", value: s.contactEmail, href: `mailto:${s.contactEmail}` }] : []),
     ...(s.contactPhone ? [{ label: "Phone", value: s.contactPhone, href: `tel:${s.contactPhone.replace(/[^\d+]/g, "")}` }] : []),
     ...(s.showAddress && s.addressLines.length ? [{ label: "Address", value: s.addressLines.join("\n") }] : []),
-    ...(s.hours ? [{ label: "Hours", value: s.hours }] : []),
+    ...(s.businessHours.length ? [{ label: "Hours", value: formatBusinessHours(s.businessHours) }] : s.hours ? [{ label: "Hours", value: s.hours }] : []),
     ...(s.serviceArea ? [{ label: "Service area", value: s.serviceArea }] : []),
     ...s.socialLinks.map((l) => ({ label: l.label, value: l.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""), href: l.url, external: true })),
   ];
