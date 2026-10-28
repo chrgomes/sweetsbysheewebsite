@@ -4,10 +4,12 @@ import { FormAlert } from "@/components/ui/field";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDate, formatDateTime } from "@/lib/dates";
 import { env } from "@/lib/env";
+import { lowStock } from "@/lib/inventory";
 import { formatMoney } from "@/lib/money";
 import { statusLabel } from "@/lib/orders";
 import { paymentProvider } from "@/lib/payments";
 import { can } from "@/lib/permissions";
+import { formatQuantity } from "@/lib/recipe-math";
 import { operationsSummary, salesSummary, type RangeKey } from "@/lib/reports";
 import { checkoutReadiness, getSettings } from "@/lib/settings";
 
@@ -41,7 +43,11 @@ export default async function Dashboard({ searchParams }: PageProps<"/admin">) {
   const settings = await getSettings();
   const range = RANGES.find((r) => r.key === sp.range) ?? RANGES[0];
   const showSales = can(admin.role, "reports:view");
-  const [ops, sales] = await Promise.all([operationsSummary(settings), showSales ? salesSummary(range.key, settings) : Promise.resolve(null)]);
+  const [ops, sales, low] = await Promise.all([
+    operationsSummary(settings),
+    showSales ? salesSummary(range.key, settings) : Promise.resolve(null),
+    can(admin.role, "inventory:view") ? lowStock() : Promise.resolve([]),
+  ]);
   const readiness = checkoutReadiness(settings, paymentProvider() !== null);
   const cur = settings.currency;
 
@@ -63,6 +69,16 @@ export default async function Dashboard({ searchParams }: PageProps<"/admin">) {
             {ops.failedEmails > 0 && `${ops.failedEmails} email${ops.failedEmails === 1 ? "" : "s"} failed to send. `}
             {ops.pendingRefunds > 0 && `${ops.pendingRefunds} refund${ops.pendingRefunds === 1 ? " is" : "s are"} waiting for the payment provider. `}
             {can(admin.role, "system:view") && <Link href="/admin/system" className="underline">Open system health</Link>}
+          </FormAlert>
+        </div>
+      )}
+
+      {low.length > 0 && (
+        <div className="mt-4">
+          <FormAlert tone="info">
+            Running low: {low.slice(0, 6).map((i) => `${i.name} (${formatQuantity(i.onHand, i.unit)})`).join(", ")}
+            {low.length > 6 ? ` and ${low.length - 6} more` : ""}.{" "}
+            <Link href="/admin/inventory?show=low" className="underline">Open inventory</Link>
           </FormAlert>
         </div>
       )}

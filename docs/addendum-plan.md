@@ -86,8 +86,19 @@ These have safe defaults (feature off, or "not configured" blocking checkout), s
 | Customers and privacy | Customer history view; erase/anonymise action; "Find my orders" | integration, e2e |
 | Ops | `/api/health`, error logging hook, runbook, backup script | — |
 
-### Phase 3 — advanced business management (not started)
-Inventory, recipe costing, suppliers, forecasting, CRM, analytics, scheduled reminders beyond deposits. Build only after the owner confirms the need.
+### Phase 3 — advanced business management (first half built)
+Built (owner asked for half of Phase 3):
+| Feature | Acceptance criteria | Tests |
+| --- | --- | --- |
+| Suppliers | Contact details and notes; ingredients link to a supplier | integration, e2e |
+| Ingredients and stock ledger | Base unit per ingredient; deliveries (cost updates cost per unit), stocktakes and waste with reasons; stock = sum of movements; audited | integration, e2e |
+| Low-stock alerts | Reorder level per ingredient; dashboard and inventory flag items at or below it | integration |
+| Recipes and costing | One recipe per product with a batch yield; ingredient cost per unit and margin at the base price, visible only with `costs:view` | unit, integration, e2e |
+| Automatic stock use | Orders use stock when moved to In production (idempotent across hold/resume), reversed on later cancellation; quote orders skipped | integration |
+| Permissions | `inventory:view`, `inventory:manage`, `costs:view`; production manages stock without seeing costs | unit, e2e |
+
+Not built yet (second half): forecasting and shopping lists from upcoming orders, sales/product analytics,
+CRM tools, scheduled reminders beyond balances, and recipe scaling by option (e.g. size).
 
 ## 5. Risks
 - **Enum migration** of existing order statuses: done in a hand-written SQL migration with an explicit mapping, tested on a copy of seeded data.

@@ -15,6 +15,20 @@
       "when": 1793049664698,
       "tag": "0001_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793151784185,
+      "tag": "0002_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793152813772,
+      "tag": "0003_fix_business_name_spelling",
+      "breakpoints": true
     }
   ]
 }

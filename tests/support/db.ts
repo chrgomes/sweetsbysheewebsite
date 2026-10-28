@@ -6,6 +6,7 @@ import { saveSettings, DEFAULT_SETTINGS, type SiteSettings } from "@/lib/setting
 /** Empty every table between tests. */
 export async function resetDb() {
   const tables = [
+    "stock_movements", "recipe_items", "recipes", "ingredients", "suppliers",
     "audit_log", "admin_sessions", "admin_users", "payment_events", "refunds", "payments", "discount_redemptions", "discounts",
     "capacity_reservations", "capacity_overrides", "notifications", "order_items", "orders", "quote_lines", "quotes",
     "inquiry_attachments", "inquiries", "customers", "product_collections", "collections", "product_option_values",

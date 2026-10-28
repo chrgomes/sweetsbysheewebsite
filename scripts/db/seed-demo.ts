@@ -16,7 +16,7 @@ if (appEnv !== "local" && appEnv !== "test") {
 
 const reset = process.argv.includes("--reset");
 if (reset) {
-  await db.execute(sql`TRUNCATE notifications, discount_redemptions, discounts, capacity_reservations, capacity_overrides, refunds, payments, quote_lines, quotes, order_items, orders, customers, payment_events, product_collections, collections, inquiry_attachments, inquiries, product_option_values, product_options, product_images, products, categories, faqs, pages, gallery_items, testimonials, settings, rate_limits RESTART IDENTITY CASCADE`);
+  await db.execute(sql`TRUNCATE stock_movements, recipe_items, recipes, ingredients, suppliers, notifications, discount_redemptions, discounts, capacity_reservations, capacity_overrides, refunds, payments, quote_lines, quotes, order_items, orders, customers, payment_events, product_collections, collections, inquiry_attachments, inquiries, product_option_values, product_options, product_images, products, categories, faqs, pages, gallery_items, testimonials, settings, rate_limits RESTART IDENTITY CASCADE`);
 }
 
 const existing = await db.query.products.findFirst();
@@ -78,6 +78,41 @@ await db.insert(schema.productCollections).values([
   { productId: cupcakes.id, collectionId: collection.id, sortOrder: 1 },
 ]);
 await db.insert(schema.discounts).values({ code: "DEMO10", description: DEMO_NOTE, kind: "percent", value: 1000 });
+
+// Sample inventory: made-up quantities and costs, for trying the stock screens.
+const [supplier] = await db.insert(schema.suppliers).values({ name: "Sample Supplier", notes: DEMO_NOTE }).returning();
+const [flour, sugar, butter, eggs] = await db
+  .insert(schema.ingredients)
+  .values([
+    { name: "Sample flour", unit: "g", supplierId: supplier.id, costPerUnitCents: 0.2, reorderLevel: 2000, notes: DEMO_NOTE },
+    { name: "Sample sugar", unit: "g", supplierId: supplier.id, costPerUnitCents: 0.25, reorderLevel: 1000, notes: DEMO_NOTE },
+    { name: "Sample butter", unit: "g", supplierId: supplier.id, costPerUnitCents: 1.2, reorderLevel: 1000, notes: DEMO_NOTE },
+    { name: "Sample eggs", unit: "each", costPerUnitCents: 30, reorderLevel: 24, notes: DEMO_NOTE },
+  ])
+  .returning();
+await db.insert(schema.stockMovements).values([
+  { ingredientId: flour.id, kind: "receipt", quantity: 10000, unitCostCents: 0.2, note: DEMO_NOTE },
+  { ingredientId: sugar.id, kind: "receipt", quantity: 5000, unitCostCents: 0.25, note: DEMO_NOTE },
+  { ingredientId: butter.id, kind: "receipt", quantity: 3000, unitCostCents: 1.2, note: DEMO_NOTE },
+  { ingredientId: eggs.id, kind: "receipt", quantity: 30, unitCostCents: 30, note: DEMO_NOTE },
+]);
+const [cakeRecipe, cupcakeRecipe] = await db
+  .insert(schema.recipes)
+  .values([
+    { productId: celebration.id, yieldQuantity: 1, notes: DEMO_NOTE },
+    { productId: cupcakes.id, yieldQuantity: 1, notes: DEMO_NOTE },
+  ])
+  .returning();
+await db.insert(schema.recipeItems).values([
+  { recipeId: cakeRecipe.id, ingredientId: flour.id, quantity: 300, sortOrder: 0 },
+  { recipeId: cakeRecipe.id, ingredientId: sugar.id, quantity: 250, sortOrder: 1 },
+  { recipeId: cakeRecipe.id, ingredientId: butter.id, quantity: 200, sortOrder: 2 },
+  { recipeId: cakeRecipe.id, ingredientId: eggs.id, quantity: 4, sortOrder: 3 },
+  { recipeId: cupcakeRecipe.id, ingredientId: flour.id, quantity: 150, sortOrder: 0 },
+  { recipeId: cupcakeRecipe.id, ingredientId: sugar.id, quantity: 120, sortOrder: 1 },
+  { recipeId: cupcakeRecipe.id, ingredientId: butter.id, quantity: 100, sortOrder: 2 },
+  { recipeId: cupcakeRecipe.id, ingredientId: eggs.id, quantity: 2, sortOrder: 3 },
+]);
 
 await db.insert(schema.faqs).values([
   { question: "Sample question: how far ahead should I order?", answer: `${DEMO_NOTE} Replace with the bakery's real lead-time policy.`, sortOrder: 0 },
