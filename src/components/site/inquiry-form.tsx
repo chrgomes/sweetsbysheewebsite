@@ -196,7 +196,6 @@ export function InquiryForm({ config }: { config: InquiryFormConfig }) {
       }}
       className="space-y-8"
       noValidate
-      encType="multipart/form-data"
     >
       <input type="hidden" name="formToken" value={config.formToken} />
       <input type="hidden" name="productId" value={chosen?.productId ?? ""} />
