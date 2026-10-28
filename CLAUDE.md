@@ -19,6 +19,7 @@ pnpm db:migrate          # apply drizzle/ migrations (DATABASE_URL)
 pnpm db:generate         # new migration after editing src/db/schema.ts — never hand-edit applied migrations
 pnpm db:seed:demo --reset  # labelled DEMO data (refused unless APP_ENV is local/test)
 pnpm admin:create        # provision an admin (ADMIN_EMAIL, ADMIN_NAME, ADMIN_PASSWORD, optional ADMIN_ROLE)
+pnpm admin:reset-password <email>  # new password for an existing admin; ends its sessions
 pnpm jobs:run            # run background jobs once (also POST /api/cron with CRON_SECRET)
 pnpm dev | build | start
 pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e   # run all before committing

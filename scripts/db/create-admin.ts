@@ -7,25 +7,10 @@
  * run interactively. It is never printed or logged.
  */
 import { eq } from "drizzle-orm";
-import { createInterface } from "node:readline";
 import { hashPassword, passwordProblems } from "../../src/lib/auth/password";
 import { ROLES, type Role } from "../../src/lib/permissions";
 import { closeDb, db, redactedUrl, schema } from "../lib/db";
-
-function promptHidden(question: string): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    const out = rl as unknown as { _writeToOutput: (s: string) => void; output: NodeJS.WriteStream };
-    out._writeToOutput = (s: string) => {
-      if (s.includes(question)) out.output.write(s);
-    };
-    rl.question(question, (answer) => {
-      rl.close();
-      process.stdout.write("\n");
-      resolve(answer);
-    });
-  });
-}
+import { promptHidden } from "../lib/prompt";
 
 const email = (process.env.ADMIN_EMAIL ?? process.argv[2] ?? "").trim().toLowerCase();
 const name = (process.env.ADMIN_NAME ?? process.argv[3] ?? "").trim();
@@ -47,7 +32,7 @@ if (problem) {
 }
 const existing = await db.query.adminUsers.findFirst({ where: eq(schema.adminUsers.email, email) });
 if (existing) {
-  console.error(`An admin with email ${email} already exists. Reset passwords from /admin/users instead.`);
+  console.error(`An admin with email ${email} already exists. Use pnpm admin:reset-password, or reset it from Admin → Team.`);
   await closeDb();
   process.exit(1);
 }

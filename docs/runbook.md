@@ -76,7 +76,12 @@ Owners manage people in **Team**. Give each person their own account and the lea
 | Production staff | See orders and the calendar; move orders through production |
 | Read-only / reporting | See orders, requests, calendar and sales figures; export |
 
-When someone leaves, untick *Active* — this signs them out everywhere.
+When someone leaves, untick *Active* (keeps the account, signs them out everywhere) or **Delete** it
+(permanent; their past actions stay in the activity log). You can't delete your own account or the last
+active owner.
+
+**Forgotten password**: another owner can set a new one in **Team**. If no owner can sign in, the developer runs
+`pnpm admin:reset-password you@example.com` against the site's database.
 
 ## When something goes wrong
 

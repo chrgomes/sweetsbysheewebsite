@@ -19,6 +19,7 @@ pnpm db:start                       # or point DATABASE_URL at your own Postgres
 pnpm db:migrate
 pnpm db:seed:demo                   # optional sample catalogue
 ADMIN_EMAIL=you@example.com ADMIN_NAME="You" pnpm admin:create
+pnpm admin:reset-password you@example.com   # forgot your admin password
 pnpm dev                            # http://localhost:3000 — admin at /admin
 ```
 
