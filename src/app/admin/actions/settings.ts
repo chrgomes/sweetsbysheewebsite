@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { AdminFormState } from "@/components/admin/admin-form";
 import { db, schema } from "@/db";
+import { deleteAdminUser } from "@/lib/admin-users";
 import { audit } from "@/lib/audit";
 import { hashPassword, passwordProblems } from "@/lib/auth/password";
 import { actorFor, requireAdmin } from "@/lib/auth/session";
@@ -167,6 +168,16 @@ export async function updateAdminUser(_p: AdminFormState, f: FormData): Promise<
   await audit(actorFor(admin), "admin.user_updated", "admin_user", user.id, { role: role.data, active, passwordReset: !!password });
   revalidatePath("/admin/users");
   return { ok: true, message: "Account updated." };
+}
+
+export async function deleteAdminUserAction(_p: AdminFormState, f: FormData): Promise<AdminFormState> {
+  const admin = await requireAdmin("users:manage");
+  const id = z.uuid().safeParse(f.get("id"));
+  if (!id.success) return { message: "Invalid user." };
+  if (f.get("confirm") !== "on") return { message: "Tick the box to confirm." };
+  const res = await deleteAdminUser(actorFor(admin), id.data);
+  revalidatePath("/admin/users");
+  return res.ok ? { ok: true, message: `Deleted ${res.email}.` } : { message: res.message };
 }
 
 export async function changeOwnPassword(_p: AdminFormState, f: FormData): Promise<AdminFormState> {

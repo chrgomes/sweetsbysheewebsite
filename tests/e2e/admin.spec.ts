@@ -112,6 +112,32 @@ test("discount codes, calendar and order export", async ({ page }) => {
   expect(await csv.text()).toContain('"Reference"');
 });
 
+test("owner adds and deletes a team member", async ({ page }) => {
+  await page.goto("/admin/users");
+  await page.getByLabel("Name").fill("Temp Helper");
+  await page.getByLabel("Email").fill("temp-helper@example.com");
+  await page.locator("#new-role").selectOption("reporting");
+  await page.getByLabel("Temporary password").fill("temporary-pass-123");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.getByText("Account created for temp-helper@example.com")).toBeVisible();
+
+  const row = page.getByRole("list", { name: "Team members" }).getByRole("listitem").filter({ hasText: "temp-helper@example.com" });
+  await expect(row.getByText("Read-only / reporting").first()).toBeVisible();
+  // The only owner can't delete themselves.
+  const me = page.getByRole("list", { name: "Team members" }).getByRole("listitem").filter({ hasText: "(you)" });
+  await expect(me.locator("summary", { hasText: "Delete" })).toHaveCount(0);
+  await page.screenshot({ path: `${SHOTS}/admin-team.png`, fullPage: true });
+
+  await row.locator("summary", { hasText: "Delete" }).click();
+  await row.getByRole("button", { name: "Delete account" }).click();
+  await expect(page.getByText("Tick the box to confirm.")).toBeVisible();
+  await row.getByLabel("I want to delete this account").check();
+  await row.getByRole("button", { name: "Delete account" }).click();
+  await expect(page.getByText("temp-helper@example.com", { exact: true })).toHaveCount(0);
+  await page.goto("/admin/audit");
+  await expect(page.getByText("admin.user_deleted").first()).toBeVisible();
+});
+
 test("production staff can progress orders but not reach owner areas", async ({ browser }) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
