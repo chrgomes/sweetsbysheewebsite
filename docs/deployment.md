@@ -48,6 +48,7 @@ pnpm start               # PORT defaults to 3000
 - Real content: run the migration pipeline and `pnpm db:seed` against the target database
   ([content-migration.md](content-migration.md)), or enter it in the admin.
 - First administrator: `ADMIN_EMAIL=… ADMIN_NAME=… pnpm admin:create` (prompts for the password).
+- Locked out: `pnpm admin:reset-password you@example.com` sets a new password (prompted twice, hidden) and ends that account's sign-ins. Run it with the target environment's `DATABASE_URL`.
 
 ## Payments (Stripe)
 

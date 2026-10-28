@@ -78,6 +78,9 @@ Owners manage people in **Team**. Give each person their own account and the lea
 
 When someone leaves, untick *Active* — this signs them out everywhere.
 
+**Forgotten password**: another owner can set a new one in **Team**. If no owner can sign in, the developer runs
+`pnpm admin:reset-password you@example.com` against the site's database.
+
 ## When something goes wrong
 
 | Symptom | What to do |

@@ -24,6 +24,7 @@
     "db:seed": "tsx scripts/migration/import-content.ts",
     "db:seed:demo": "tsx scripts/db/seed-demo.ts",
     "admin:create": "tsx scripts/db/create-admin.ts",
+    "admin:reset-password": "tsx scripts/db/reset-admin-password.ts",
     "jobs:run": "tsx --conditions=react-server scripts/jobs/run.ts",
     "audit:crawl": "tsx scripts/audit/crawl.ts",
     "audit:screenshots": "tsx scripts/audit/screenshots.ts",
