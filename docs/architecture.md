@@ -159,19 +159,26 @@ with exponential backoff up to 5 attempts and appear in Admin → System health 
 retry button. `runJobs()` (payments recovery, hold expiry, quote expiry, balance reminders, email retries,
 rate-limit cleanup) is idempotent and runs from `POST /api/cron` (bearer `CRON_SECRET`) or `pnpm jobs:run`.
 
-### Inventory and recipe costing (Phase 3, first half)
+### Inventory, recipe costing, forecasting and reports (Phase 3)
 
 Stock on hand is the sum of an ingredient's movements; there's no stored running total to drift. Staff record
 deliveries (optionally with what was paid, which sets the ingredient's cost per unit), stocktakes (the count
 becomes an adjustment for the difference, with a reason) and waste (with a reason); all are audited. When an
 order moves to *In production*, `consumeStockForOrder` writes usage rows inside the status change's transaction:
-each line uses quantity ÷ recipe yield batches. The unique (order, ingredient, kind) index makes it idempotent
-(hold → resume doesn't deduct twice), and cancelling afterwards writes matching reversal rows. Orders from custom
-quotes are skipped because their lines are free text; staff record that usage by hand. Stock may go below zero
-(the ledger records what happened); the screens flag it. Recipe cost = Σ(quantity × cost per unit) ÷ yield,
-shown with the margin at the base price to roles with `costs:view`. Option choices (e.g. size) don't scale
-recipes yet. Not built yet (second half of Phase 3): forecasting/shopping lists, sales analytics, CRM tools,
-extra reminders — see `docs/addendum-plan.md`.
+each line uses quantity × scale ÷ recipe yield batches, where scale is the product of the chosen option values'
+`recipe_scale` (order items record each choice's `valueId` for this; older orders use 1). The unique
+(order, ingredient, kind) index makes it idempotent (hold → resume doesn't deduct twice), and cancelling
+afterwards writes matching reversal rows. Orders from custom quotes are skipped because their lines are free
+text; staff record that usage by hand. Stock may go below zero (the ledger records what happened); the screens
+flag it. Recipe cost = Σ(quantity × cost per unit) ÷ yield, shown per option and with margins to roles with
+`costs:view`.
+
+`ingredientForecast(from, to)` adds up the same calculation for orders due in a date range that haven't used
+stock yet (confirmed and on-hold orders, optionally unpaid ones), compares it with stock on hand, and gives a
+shopping list grouped by supplier (enough for the orders plus each ingredient's warn level). `productSales` in
+`src/lib/reports.ts` reports units, sales and estimated ingredient cost per product for orders confirmed in a
+range (definitions in `docs/reporting.md`). Not built yet: CRM tools and extra reminders (owner decisions
+pending, see `docs/addendum-plan.md`).
 
 ### Merchandising
 
@@ -214,6 +221,6 @@ stay hidden until there is real sales history. Collections show only while activ
 
 | Suite | Command | Covers |
 | --- | --- | --- |
-| Unit | `pnpm test` | recipe maths (needs, costing, margins, units), money, dates/timezones/cut-off, pricing (options, text surcharges, discounts, rounding), permissions matrix, upload sniffing, spam tokens, passwords, references, redirects, HTML extraction, robots |
-| Integration | `pnpm test` | quoting, order placement, tax/delivery/windows, readiness gate, webhook idempotency (concurrent duplicates, out-of-order events, retry for unknown sessions), refunds and offline payments, status transitions and permissions, capacity concurrency (6 racers → 1 wins), hold expiry, overrides, discount limits under concurrency, notification de-dupe/retry/escaping, jobs, quotes (send, versioning, accept → deposit → balance, decline, expiry, full date), customer links, data erasure, merchandising and sales metrics, stock ledger (deliveries/cost, stocktake, waste, low stock), recipe costing, stock use on production with hold/resume idempotency and cancellation reversal, team-member deletion, the migration pipeline |
-| E2E | `pnpm test:e2e` | internal links, catalogue/SEO, collections/new arrivals, option enforcement, personalisation and discount pricing, full purchase with payment, failed payment, tampered cart, multi-step request (step validation, saved progress, review, upload rejection), staff quote → customer accepts → deposit → balance → production, product options/collections/draft preview, discount/calendar/export admin, inventory (ingredient, delivery, stocktake, waste, recipe cost and margin), team add/delete, production-role restrictions (stock without costs), signed-out protection, keyboard, mobile layout |
+| Unit | `pnpm test` | recipe maths (needs, option scaling, costing, margins, units), money, dates/timezones/cut-off, pricing (options, text surcharges, discounts, rounding), permissions matrix, upload sniffing, spam tokens, passwords, references, redirects, HTML extraction, robots |
+| Integration | `pnpm test` | quoting, order placement, tax/delivery/windows, readiness gate, webhook idempotency (concurrent duplicates, out-of-order events, retry for unknown sessions), refunds and offline payments, status transitions and permissions, capacity concurrency (6 racers → 1 wins), hold expiry, overrides, discount limits under concurrency, notification de-dupe/retry/escaping, jobs, quotes (send, versioning, accept → deposit → balance, decline, expiry, full date), customer links, data erasure, merchandising and sales metrics, stock ledger (deliveries/cost, stocktake, waste, low stock), recipe costing, stock use on production with option scaling, hold/resume idempotency and cancellation reversal, ingredient forecast, product sales report, team-member deletion, the migration pipeline |
+| E2E | `pnpm test:e2e` | internal links, catalogue/SEO, collections/new arrivals, option enforcement, personalisation and discount pricing, full purchase with payment, failed payment, tampered cart, multi-step request (step validation, saved progress, review, upload rejection), staff quote → customer accepts → deposit → balance → production, product options/collections/draft preview, discount/calendar/export admin, inventory (ingredient, delivery, stocktake, waste, recipe cost and margin), a paid order flowing into the forecast and sales report (reporting role, read-only), team add/delete, production-role restrictions (stock without costs), signed-out protection, keyboard, mobile layout |

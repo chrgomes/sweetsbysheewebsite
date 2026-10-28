@@ -144,6 +144,8 @@ export const productOptionValues = pgTable(
     priceDeltaCents: integer("price_delta_cents").notNull().default(0),
     available: boolean("available").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
+    /** Multiplies the product's recipe when this choice is picked (e.g. a 10" cake uses 2× a 6"). */
+    recipeScale: numeric("recipe_scale", { precision: 8, scale: 3, mode: "number" }).notNull().default(1),
   },
   (t) => [index("product_option_values_option_idx").on(t.optionId)],
 );
@@ -280,7 +282,8 @@ export const orders = pgTable(
   ],
 );
 
-export type OrderItemOption = { option: string; value: string; priceDeltaCents: number };
+/** `valueId` is recorded for choice options (orders placed since recipe scaling) so stock use can follow the choice. */
+export type OrderItemOption = { option: string; value: string; priceDeltaCents: number; valueId?: string };
 
 export const orderItems = pgTable(
   "order_items",

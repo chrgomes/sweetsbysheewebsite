@@ -151,6 +151,7 @@ const optionsSchema = z
               label: z.string().trim().min(1, "Every choice needs a label.").max(120),
               priceDeltaCents: z.number().int().min(-1_000_000).max(1_000_000),
               available: z.boolean(),
+              recipeScale: z.number({ error: "Recipe × must be a number." }).finite().positive("Recipe × must be more than zero.").max(100, "Recipe × can be at most 100.").default(1),
             }),
           )
           .max(40),
@@ -193,13 +194,13 @@ export async function saveOptions(_prev: AdminFormState, form: FormData): Promis
       const keepValueIds = o.values.map((v) => v.id).filter((x): x is string => !!x && prevValues.has(x));
       await tx.delete(schema.productOptionValues).where(and(eq(schema.productOptionValues.optionId, optionId), keepValueIds.length ? notInArray(schema.productOptionValues.id, keepValueIds) : undefined));
       for (const [j, v] of (o.kind === "text" ? [] : o.values).entries()) {
-        const data = { label: v.label, priceDeltaCents: v.priceDeltaCents, available: v.available, sortOrder: j };
+        const data = { label: v.label, priceDeltaCents: v.priceDeltaCents, available: v.available, sortOrder: j, recipeScale: Math.round(v.recipeScale * 1000) / 1000 };
         if (v.id && prevValues.has(v.id)) await tx.update(schema.productOptionValues).set(data).where(eq(schema.productOptionValues.id, v.id));
         else await tx.insert(schema.productOptionValues).values({ ...data, optionId });
       }
     }
   });
-  await audit(actorFor(admin), "product.options_updated", "product", productId.data, { options: parsed.data.map((o) => (o.kind === "text" ? { name: o.name, kind: "text", maxLength: o.maxLength, priceDeltaCents: o.priceDeltaCents } : { name: o.name, values: o.values.map((v) => `${v.label} (${v.priceDeltaCents})`) })) });
+  await audit(actorFor(admin), "product.options_updated", "product", productId.data, { options: parsed.data.map((o) => (o.kind === "text" ? { name: o.name, kind: "text", maxLength: o.maxLength, priceDeltaCents: o.priceDeltaCents } : { name: o.name, values: o.values.map((v) => `${v.label} (${v.priceDeltaCents}, ×${v.recipeScale})`) })) });
   revalidatePath(`/admin/products/${productId.data}`);
   return { ok: true, message: "Options saved." };
 }

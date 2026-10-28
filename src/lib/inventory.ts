@@ -275,7 +275,7 @@ export async function saveRecipe(actor: Actor, productId: string, input: RecipeI
   return { ok: true as const };
 }
 
-async function recipesFor(tx: DbOrTx, productIds: string[]) {
+export async function recipesFor(tx: DbOrTx, productIds: string[]) {
   if (!productIds.length) return new Map<string, RecipeForMath & { costs: Map<string, number | null> }>();
   const rows = await tx.query.recipes.findMany({
     where: inArray(schema.recipes.productId, productIds),
@@ -303,6 +303,22 @@ export async function productCosts(productIds: string[]) {
 /* Orders                                                              */
 /* ------------------------------------------------------------------ */
 
+type ItemForStock = { productId: string | null; quantity: number; options: schema.OrderItemOption[] };
+
+/**
+ * Recipe scale for each order line: the product of the chosen options'
+ * scales. Lines from orders placed before options recorded their value id
+ * (or whose choice has since been deleted) use 1.
+ */
+export async function withScales<T extends ItemForStock>(tx: DbOrTx, items: T[]): Promise<(T & { scale: number })[]> {
+  const ids = [...new Set(items.flatMap((i) => i.options.map((o) => o.valueId).filter((x): x is string => !!x)))];
+  const rows = ids.length
+    ? await tx.select({ id: schema.productOptionValues.id, scale: schema.productOptionValues.recipeScale }).from(schema.productOptionValues).where(inArray(schema.productOptionValues.id, ids))
+    : [];
+  const scaleOf = new Map(rows.map((r) => [r.id, r.scale]));
+  return items.map((i) => ({ ...i, scale: i.options.reduce((n, o) => n * (o.valueId ? (scaleOf.get(o.valueId) ?? 1) : 1), 1) }));
+}
+
 /**
  * Deduct ingredients for an order going into production, inside the status
  * change's transaction. Idempotent: the unique (order, ingredient, kind) index
@@ -311,11 +327,11 @@ export async function productCosts(productIds: string[]) {
  * their usage as waste/stocktake instead.
  */
 export async function consumeStockForOrder(tx: Tx, orderId: string) {
-  const order = await tx.query.orders.findFirst({ where: eq(schema.orders.id, orderId), columns: { sourceQuoteId: true }, with: { items: { columns: { productId: true, quantity: true } } } });
+  const order = await tx.query.orders.findFirst({ where: eq(schema.orders.id, orderId), columns: { sourceQuoteId: true }, with: { items: { columns: { productId: true, quantity: true, options: true } } } });
   if (!order || order.sourceQuoteId) return { used: 0, uncounted: [] as string[] };
   const productIds = [...new Set(order.items.map((i) => i.productId).filter((x): x is string => !!x))];
   const recipes = await recipesFor(tx, productIds);
-  const { needs, uncounted } = ingredientNeeds(order.items, recipes);
+  const { needs, uncounted } = ingredientNeeds(await withScales(tx, order.items), recipes);
   if (!needs.size) return { used: 0, uncounted };
   const costs = await tx.query.ingredients.findMany({ where: inArray(schema.ingredients.id, [...needs.keys()]), columns: { id: true, costPerUnitCents: true } });
   const costOf = new Map(costs.map((c) => [c.id, c.costPerUnitCents]));
@@ -346,4 +362,65 @@ export async function stockForOrder(orderId: string) {
     with: { ingredient: { columns: { id: true, name: true, unit: true } } },
     orderBy: [asc(schema.stockMovements.createdAt)],
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Forecast                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Ingredients needed for orders due between two dates (inclusive) that
+ * haven't used their stock yet: confirmed orders, on-hold orders that never
+ * reached production, and optionally orders still awaiting payment. Compared
+ * with stock on hand to give what's short and what to buy (enough for the
+ * orders plus the warning level, so you don't finish below it).
+ */
+export async function ingredientForecast(fromDate: string, toDate: string, opts: { includePending?: boolean } = {}) {
+  const statuses: (typeof schema.orderStatus.enumValues)[number][] = ["confirmed", "on_hold", ...(opts.includePending ? (["pending"] as const) : [])];
+  const orders = await db().query.orders.findMany({
+    where: and(inArray(schema.orders.status, statuses), sql`${schema.orders.fulfillmentDate} between ${fromDate} and ${toDate}`),
+    columns: { id: true, sourceQuoteId: true },
+    with: { items: { columns: { productId: true, productName: true, quantity: true, options: true } } },
+  });
+  const consumed = orders.length
+    ? new Set(
+        (
+          await db()
+            .selectDistinct({ orderId: schema.stockMovements.orderId })
+            .from(schema.stockMovements)
+            .where(and(eq(schema.stockMovements.kind, "usage"), inArray(schema.stockMovements.orderId, orders.map((o) => o.id))))
+        ).map((r) => r.orderId),
+      )
+    : new Set<string | null>();
+  const counted = orders.filter((o) => !o.sourceQuoteId && !consumed.has(o.id));
+  const items = counted.flatMap((o) => o.items);
+  const productIds = [...new Set(items.map((i) => i.productId).filter((x): x is string => !!x))];
+  const { needs, uncounted } = ingredientNeeds(await withScales(db(), items), await recipesFor(db(), productIds));
+  const all = await listIngredients({ includeInactive: true });
+  const rows = all
+    .filter((i) => needs.has(i.id))
+    .map((i) => {
+      const needed = needs.get(i.id)!;
+      return {
+        id: i.id,
+        name: i.name,
+        unit: i.unit,
+        supplier: i.supplier,
+        costPerUnitCents: i.costPerUnitCents,
+        reorderLevel: i.reorderLevel,
+        needed,
+        onHand: i.onHand,
+        after: round3(i.onHand - needed),
+        short: round3(Math.max(0, needed - i.onHand)),
+        toBuy: round3(Math.max(0, needed + (i.reorderLevel ?? 0) - i.onHand)),
+      };
+    })
+    .sort((a, b) => b.short - a.short || a.name.localeCompare(b.name));
+  const names = new Map(items.filter((i) => i.productId).map((i) => [i.productId!, i.productName]));
+  return {
+    rows,
+    orderCount: counted.length,
+    quoteOrders: orders.filter((o) => o.sourceQuoteId && !consumed.has(o.id)).length,
+    withoutRecipe: uncounted.map((id) => names.get(id) ?? "Unknown product"),
+  };
 }

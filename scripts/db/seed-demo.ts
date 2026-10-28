@@ -37,7 +37,7 @@ const [cakes, treats] = await db
   .returning();
 
 type DemoOption =
-  | { name: string; required: boolean; values: [string, number, boolean?][] }
+  | { name: string; required: boolean; values: [string, number, boolean?, number?][] }
   | { name: string; required: boolean; text: { maxLength: number; priceDeltaCents: number; helpText: string } };
 
 async function product(p: typeof schema.products.$inferInsert, options: DemoOption[] = []) {
@@ -49,7 +49,7 @@ async function product(p: typeof schema.products.$inferInsert, options: DemoOpti
       continue;
     }
     const [opt] = await db.insert(schema.productOptions).values({ productId: row.id, name: o.name, required: o.required, sortOrder: i }).returning();
-    await db.insert(schema.productOptionValues).values(o.values.map(([label, delta, available = true], j) => ({ optionId: opt.id, label, priceDeltaCents: delta, available, sortOrder: j })));
+    await db.insert(schema.productOptionValues).values(o.values.map(([label, delta, available = true, recipeScale = 1], j) => ({ optionId: opt.id, label, priceDeltaCents: delta, available, recipeScale, sortOrder: j })));
   }
   return row;
 }
@@ -57,7 +57,7 @@ async function product(p: typeof schema.products.$inferInsert, options: DemoOpti
 const celebration = await product(
   { slug: "sample-celebration-cake", name: "Sample Celebration Cake", categoryId: cakes.id, summary: "Demo product with size and flavour options.", description: `${DEMO_NOTE}\n\nUse this product to try the cart, options and checkout flow.`, status: "active", basePriceCents: 4500, directPurchase: true, customOrder: true, leadTimeHours: 72, pickupEligible: true, deliveryEligible: true, featured: true, sortOrder: 0, servings: "Sample: 8–12", capacityUnits: 2 },
   [
-    { name: "Size", required: true, values: [['6" round', 0], ['8" round', 1500], ['10" round', 3000, false]] },
+    { name: "Size", required: true, values: [['6" round', 0], ['8" round', 1500, true, 1.5], ['10" round', 3000, false, 2]] },
     { name: "Flavour", required: true, values: [["Sample vanilla", 0], ["Sample chocolate", 0], ["Sample lemon", 300]] },
     { name: "Message on cake", required: false, text: { maxLength: 30, priceDeltaCents: 300, helpText: "Demo personalisation option." } },
   ],

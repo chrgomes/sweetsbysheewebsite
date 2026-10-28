@@ -1,0 +1,1 @@
+ALTER TABLE "product_option_values" ADD COLUMN "recipe_scale" numeric(8, 3) DEFAULT 1 NOT NULL;

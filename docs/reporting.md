@@ -29,14 +29,32 @@ reporting).
 | **Failed emails / pending refunds** | Outbox messages that gave up after 5 attempts; refunds still waiting for the provider. |
 | **Next 7 days** | Confirmed, in-production and ready orders with a fulfilment date from today to 7 days ahead. |
 
+## Reports page (Admin → Reports)
+
+| Metric | Definition |
+| --- | --- |
+| **Orders confirmed** | Orders whose first successful payment falls in the range, excluding orders later cancelled (unlike the dashboard's "Orders confirmed", which counts them in the period they were confirmed). |
+| **Product sales** | Σ order line totals for those orders: unit price including options × quantity, before order-level discounts, tax and delivery. |
+| **Items sold / units** | Σ line quantities. |
+| **Share** | A product's sales ÷ all product sales in the range. |
+| **Est. ingredient cost** | Σ (product's recipe cost per unit × the chosen options' recipe multipliers × quantity), using *current* ingredient costs. "—" when the product has no recipe or an ingredient has no cost. Custom-quote orders are one row and have no cost (their lines are free text). Visible with `costs:view`. |
+| **Est. margin** | Sales − est. ingredient cost, and as a % of sales. Excludes labour, packaging and overheads. |
+| **Product sales by day** | Product sales grouped by the day of each order's first payment, in the bakery's timezone. |
+
+## Ingredient forecast (Admin → Inventory → Forecast)
+
+Orders due (by pickup/delivery date) in the range that haven't used stock yet: confirmed, and on hold without
+having reached production; unpaid orders only when ticked. Needed = Σ quantity × option multipliers ÷ recipe
+yield × recipe amounts. *Left after* = in stock − needed. *To buy* = max(0, needed + warn level − in stock), so
+stock ends at or above the warn level. Estimated cost uses the last known price.
+
 ## What is deliberately not reported
 
 - Unpaid (`pending`) orders are not sales: they become sales only when a payment succeeds.
 - Bestsellers on the storefront use paid orders in the last 90 days, with a minimum set in Settings, so a
   handful of test orders can't create a "bestseller".
-- Cost of goods in the sales figures. Per-product ingredient cost and margin are shown on each product's page
-  (Admin → Products, to roles with `costs:view`): Σ(recipe quantity × ingredient cost per unit) ÷ batch yield,
-  using the latest known ingredient costs and the base price (options excluded). Labour, packaging and
+- Cost of goods on the dashboard. Estimated ingredient costs appear on the Reports page and on each product's
+  page (Σ recipe quantity × ingredient cost per unit ÷ batch yield, × option multipliers). Labour, packaging and
   overheads aren't included unless you add them as ingredients.
 
 ## Exports

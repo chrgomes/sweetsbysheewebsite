@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { centsToInput, parseMoneyInput } from "@/lib/money";
 
-type Value = { id?: string; label: string; price: string; available: boolean };
+type Value = { id?: string; label: string; price: string; available: boolean; scale: string };
 type Option = { id?: string; name: string; kind: "choice" | "text"; required: boolean; maxLength: string; surcharge: string; helpText: string; values: Value[] };
 
 export type EditorOption = {
@@ -15,13 +15,13 @@ export type EditorOption = {
   maxLength: number | null;
   priceDeltaCents: number;
   helpText: string | null;
-  values: { id: string; label: string; priceDeltaCents: number; available: boolean }[];
+  values: { id: string; label: string; priceDeltaCents: number; available: boolean; recipeScale: number }[];
 };
 
 /** Edits product options and serialises them into a hidden "options" field for the Server Action. */
 export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
   const [options, setOptions] = useState<Option[]>(() =>
-    initial.map((o) => ({ id: o.id, name: o.name, kind: o.kind, required: o.required, maxLength: o.maxLength?.toString() ?? "", surcharge: o.priceDeltaCents ? centsToInput(o.priceDeltaCents) : "", helpText: o.helpText ?? "", values: o.values.map((v) => ({ id: v.id, label: v.label, price: centsToInput(v.priceDeltaCents), available: v.available })) })),
+    initial.map((o) => ({ id: o.id, name: o.name, kind: o.kind, required: o.required, maxLength: o.maxLength?.toString() ?? "", surcharge: o.priceDeltaCents ? centsToInput(o.priceDeltaCents) : "", helpText: o.helpText ?? "", values: o.values.map((v) => ({ id: v.id, label: v.label, price: centsToInput(v.priceDeltaCents), available: v.available, scale: String(v.recipeScale) })) })),
   );
   const update = (i: number, patch: Partial<Option>) => setOptions((os) => os.map((o, k) => (k === i ? { ...o, ...patch } : o)));
   const updateValue = (i: number, j: number, patch: Partial<Value>) => update(i, { values: options[i].values.map((v, k) => (k === j ? { ...v, ...patch } : v)) });
@@ -37,7 +37,8 @@ export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
       values: (o.kind === "text" ? [] : o.values).map((v) => {
         const neg = v.price.trim().startsWith("-");
         const cents = parseMoneyInput(v.price.replace("-", "") || "0") ?? 0;
-        return { ...(v.id ? { id: v.id } : {}), label: v.label, priceDeltaCents: neg ? -cents : cents, available: v.available };
+        const scale = Number(v.scale.trim() || "1");
+        return { ...(v.id ? { id: v.id } : {}), label: v.label, priceDeltaCents: neg ? -cents : cents, available: v.available, recipeScale: scale };
       }),
     })),
   );
@@ -85,27 +86,28 @@ export function OptionsEditor({ initial }: { initial: EditorOption[] }) {
           ) : (
           <>
           <table className="mt-3 w-full text-sm">
-            <thead className="text-left text-xs text-ink-muted"><tr><th className="py-1 font-medium">Choice</th><th className="py-1 font-medium">Price change ($)</th><th className="py-1 font-medium">Available</th><th /></tr></thead>
+            <thead className="text-left text-xs text-ink-muted"><tr><th className="py-1 font-medium">Choice</th><th className="py-1 font-medium">Price change ($)</th><th className="py-1 font-medium">Recipe ×</th><th className="py-1 font-medium">Available</th><th /></tr></thead>
             <tbody>
               {o.values.map((v, j) => (
                 <tr key={v.id ?? `nv-${j}`}>
                   <td className="py-1 pr-2"><input aria-label="Choice label" className={`${field} w-full`} value={v.label} onChange={(e) => updateValue(i, j, { label: e.target.value })} /></td>
                   <td className="py-1 pr-2"><input aria-label="Price change" className={`${field} w-28`} inputMode="decimal" placeholder="0.00" value={v.price} onChange={(e) => updateValue(i, j, { price: e.target.value })} /></td>
+                  <td className="py-1 pr-2"><input aria-label="Recipe multiplier" className={`${field} w-20`} inputMode="decimal" placeholder="1" value={v.scale} onChange={(e) => updateValue(i, j, { scale: e.target.value })} /></td>
                   <td className="py-1 pr-2"><input aria-label="Available" type="checkbox" className="size-4" checked={v.available} onChange={(e) => updateValue(i, j, { available: e.target.checked })} /></td>
                   <td className="py-1 text-right"><button type="button" className="text-danger hover:underline" onClick={() => update(i, { values: o.values.filter((_, k) => k !== j) })} aria-label={`Remove ${v.label || "choice"}`}>×</button></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <button type="button" className="mt-2 text-sm text-berry hover:underline" onClick={() => update(i, { values: [...o.values, { label: "", price: "", available: true }] })}>+ Add choice</button>
+          <button type="button" className="mt-2 text-sm text-berry hover:underline" onClick={() => update(i, { values: [...o.values, { label: "", price: "", available: true, scale: "1" }] })}>+ Add choice</button>
           </>
           )}
         </fieldset>
       ))}
-      <Button type="button" variant="secondary" size="sm" onClick={() => setOptions((os) => [...os, { name: "", kind: "choice", required: true, maxLength: "", surcharge: "", helpText: "", values: [{ label: "", price: "", available: true }] }])}>
+      <Button type="button" variant="secondary" size="sm" onClick={() => setOptions((os) => [...os, { name: "", kind: "choice", required: true, maxLength: "", surcharge: "", helpText: "", values: [{ label: "", price: "", available: true, scale: "1" }] }])}>
         + Add option
       </Button>
-      <p className="text-xs text-ink-muted">Price changes are added to the base price. Use a minus sign for a discount. Personalised text is checked against its character limit on the server.</p>
+      <p className="text-xs text-ink-muted">Price changes are added to the base price. Use a minus sign for a discount. Recipe × scales the product’s recipe for that choice (e.g. 2 if a 10&quot; cake uses twice the base recipe). Personalised text is checked against its character limit on the server.</p>
     </div>
   );
 }
