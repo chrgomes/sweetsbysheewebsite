@@ -10,10 +10,11 @@ export const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * Ingredients used by a set of order lines: each line uses
- * quantity ÷ yield batches of its product's recipe. Lines whose product has no
- * recipe are reported so staff can see what wasn't counted.
+ * quantity × scale ÷ yield batches of its product's recipe, where `scale` is
+ * the product of the chosen options' recipe scales (1 when none apply). Lines
+ * whose product has no recipe are reported so staff can see what wasn't counted.
  */
-export function ingredientNeeds(lines: { productId: string | null; quantity: number }[], recipes: Map<string, RecipeForMath>) {
+export function ingredientNeeds(lines: { productId: string | null; quantity: number; scale?: number }[], recipes: Map<string, RecipeForMath>) {
   const needs = new Map<string, number>();
   const uncounted = new Set<string>();
   for (const line of lines) {
@@ -23,7 +24,7 @@ export function ingredientNeeds(lines: { productId: string | null; quantity: num
       uncounted.add(line.productId);
       continue;
     }
-    const batches = line.quantity / recipe.yieldQuantity;
+    const batches = (line.quantity * (line.scale ?? 1)) / recipe.yieldQuantity;
     for (const item of recipe.items) needs.set(item.ingredientId, (needs.get(item.ingredientId) ?? 0) + item.quantity * batches);
   }
   for (const [k, v] of needs) needs.set(k, round3(v));

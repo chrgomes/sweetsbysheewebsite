@@ -67,6 +67,13 @@ developer unless it says so.
 - **Recipes**: on each product's page, list the ingredients for one batch and how many the batch makes. When an
   order moves to *In production*, its ingredients come off stock automatically; if it's cancelled after that,
   they go back. Custom-quote orders don't do this — record what they used as waste or with a stocktake.
+- **Sizes and other choices**: in a product's *Options & prices*, set *Recipe ×* on each choice (e.g. 1.5 for
+  an 8" if it uses half as much again as the recipe). Stock use, the forecast and costs follow it.
+- **Forecast and shopping list** (Inventory → *Forecast & shopping list*, or *Ingredients needed* on the
+  calendar's day/week view): what confirmed orders in a date range will use, what you'll be short of, and what to
+  buy from each supplier.
+- **Reports** (Admin → Reports): what sold, for how much, and the estimated ingredient cost and margin, by
+  product, for any date range.
 - **Costs and margins** show only to the owner, administrators and read-only/reporting accounts. Production
   staff can record stock but don't see what things cost.
 - **Suppliers**: keep contact details and notes (order days, minimums) under Suppliers, and pick the supplier

@@ -46,7 +46,8 @@ export type PricedLine = {
   slug: string;
   name: string;
   image: { src: string; alt: string } | null;
-  options: { option: string; value: string; priceDeltaCents: number }[];
+  /** `valueId` is set for choice options and stored on the order so stock use can follow the choice. */
+  options: { option: string; value: string; priceDeltaCents: number; valueId?: string }[];
   optionValueIds: string[];
   texts: TextInput[];
   unitPriceCents: number;
@@ -125,7 +126,7 @@ export function priceLine(product: PricedProduct | undefined, input: CartLineInp
       continue;
     }
     if (!value.available) return fail(`${option.name} "${value.label}" is unavailable.`);
-    selected.push({ option: option.name, value: value.label, priceDeltaCents: value.priceDeltaCents });
+    selected.push({ option: option.name, value: value.label, priceDeltaCents: value.priceDeltaCents, valueId: value.id });
     consumedChoices++;
   }
   if (consumedChoices !== chosen.size) return fail("Some selected options don't belong to this product.");

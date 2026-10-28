@@ -31,7 +31,12 @@ export default async function InventoryPage({ searchParams }: PageProps<"/admin/
       <AdminHeader
         title="Inventory"
         description="Ingredients and stock on hand. Stock goes down automatically when an order with a recipe moves to In production, and back up if it's cancelled after that."
-        actions={<Link href="/admin/suppliers" className="rounded-full border border-line-strong px-4 py-2 text-sm hover:border-ink">Suppliers</Link>}
+        actions={
+          <>
+            <Link href="/admin/inventory/forecast" className="rounded-full border border-line-strong px-4 py-2 text-sm hover:border-ink">Forecast &amp; shopping list</Link>
+            <Link href="/admin/suppliers" className="rounded-full border border-line-strong px-4 py-2 text-sm hover:border-ink">Suppliers</Link>
+          </>
+        }
       />
       <nav aria-label="Ingredient filters" className="mb-4 flex flex-wrap gap-2">
         {filters.map((f) => (

@@ -20,6 +20,11 @@ describe("ingredientNeeds", () => {
     expect(uncounted).toEqual(["bread"]);
   });
 
+  it("applies each line's recipe scale (e.g. a bigger size)", () => {
+    const { needs } = ingredientNeeds([{ productId: "cake", quantity: 1, scale: 2 }, { productId: "cake", quantity: 1, scale: 1.5 }], new Map([["cake", cake]]));
+    expect(Object.fromEntries(needs)).toEqual({ flour: 875, eggs: 14 });
+  });
+
   it("rounds to three decimals", () => {
     const { needs } = ingredientNeeds([{ productId: "cup", quantity: 1 }], new Map([["cup", cupcakes]]));
     expect(needs.get("butter")).toBe(16.667);

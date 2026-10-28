@@ -130,7 +130,7 @@ export const checkoutSchema = z
     customerName: nameSchema,
     customerEmail: emailSchema,
     customerPhone: optionalPhoneSchema,
-    fulfillmentMethod: z.enum(["pickup", "delivery"]),
+    fulfillmentMethod: z.enum(["pickup", "delivery"], { error: "Please choose pickup or delivery." }),
     fulfillmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Please choose a date."),
     fulfillmentWindow: optionalText(40),
     deliveryAddress: addressSchema.optional(),

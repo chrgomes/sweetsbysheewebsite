@@ -15,6 +15,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin", label: "Dashboard", permission: "dashboard:view" },
     { href: "/admin/orders", label: "Orders", permission: "orders:view" },
     { href: "/admin/calendar", label: "Calendar", permission: "calendar:view" },
+    { href: "/admin/reports", label: "Reports", permission: "reports:view" },
     { href: "/admin/inquiries", label: "Custom requests", permission: "inquiries:view" },
     { href: "/admin/customers", label: "Customers", permission: "customers:view" },
     { href: "/admin/products", label: "Products", permission: "products:view" },

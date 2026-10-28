@@ -29,6 +29,13 @@
       "when": 1793152813772,
       "tag": "0003_fix_business_name_spelling",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793153910456,
+      "tag": "0004_recipe_scaling",
+      "breakpoints": true
     }
   ]
 }

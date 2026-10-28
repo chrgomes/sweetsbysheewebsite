@@ -32,3 +32,5 @@ export async function signIn(page: Page, who: { email: string; password: string 
 }
 /** Order manager: requests, quotes, payments and production, but not settings or refunds. */
 export const ORDER_MANAGER = { email: "e2e-orders@example.com", password: "e2e-password-orders-1" };
+/** Read-only / reporting: sees reports, stock and costs; changes nothing. */
+export const REPORTING = { email: "e2e-reports@example.com", password: "e2e-password-reports-1" };

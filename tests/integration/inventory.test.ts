@@ -1,8 +1,9 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { db, schema } from "@/db";
-import { getIngredient, listIngredients, lowStock, productCosts, recordMovement, saveIngredient, saveRecipe, saveSupplier, stockForOrder } from "@/lib/inventory";
+import { getIngredient, ingredientForecast, listIngredients, lowStock, productCosts, recordMovement, saveIngredient, saveRecipe, saveSupplier, stockForOrder } from "@/lib/inventory";
 import { checkoutSchema, handlePaymentEvent, placeOrder, updateOrderStatus } from "@/lib/orders";
+import { productSales } from "@/lib/reports";
 import { configureShop, createAdmin, createTestProduct, futureDate, resetDb } from "../support/db";
 
 beforeEach(resetDb);
@@ -106,6 +107,18 @@ describe("recipes, costing and order usage", () => {
     expect((await stockForOrder(orderId)).map((m) => m.kind).sort()).toEqual(["reversal", "reversal", "usage", "usage"]);
   });
 
+  it("scales stock use by the chosen option's recipe multiplier", async () => {
+    const { actor, product, values, flour, eggs } = await setup();
+    await db().update(schema.productOptionValues).set({ recipeScale: 2 }).where(eq(schema.productOptionValues.id, values.large.id));
+    const orderId = await paidOrder(product.id, values.large.id, 1);
+    const item = (await db().query.orderItems.findFirst({ where: eq(schema.orderItems.orderId, orderId) }))!;
+    expect(item.options).toContainEqual(expect.objectContaining({ valueId: values.large.id }));
+    await updateOrderStatus(actor, orderId, "in_production");
+    // 1 cake × 2 ÷ yield 2 = 1 batch
+    expect((await getIngredient(flour))!.onHand).toBe(1500);
+    expect((await getIngredient(eggs))!.onHand).toBe(16);
+  });
+
   it("cancelling before production changes no stock", async () => {
     const { actor, product, values, flour } = await setup();
     const orderId = await paidOrder(product.id, values.small.id, 1);
@@ -132,5 +145,56 @@ describe("recipes, costing and order usage", () => {
     const { actor, product } = await setup();
     expect(await saveRecipe(actor, product.id, { yieldQuantity: 1, notes: null, items: [] })).toMatchObject({ ok: true });
     expect((await productCosts([product.id])).size).toBe(0);
+  });
+});
+
+describe("ingredient forecast", () => {
+  it("adds up upcoming orders that haven't used stock, and says what to buy", async () => {
+    await configureShop();
+    const actor = await createAdmin();
+    const { product, values } = await createTestProduct();
+    const res = await saveIngredient(actor, null, { name: "Flour", unit: "g", supplierId: null, costPerUnitCents: 0.2, reorderLevel: 500, notes: null, active: true });
+    if (!res.ok) throw new Error();
+    const flour = res.id;
+    await recordMovement(actor, flour, { type: "receipt", quantity: 1000, totalCostCents: null, note: null });
+    await saveRecipe(actor, product.id, { yieldQuantity: 1, notes: null, items: [{ ingredientId: flour, quantity: 400 }] });
+
+    await paidOrder(product.id, values.small.id, 2); // 800 g
+    const b = await paidOrder(product.id, values.small.id, 1); // 400 g
+    // An order already in production has used its stock and isn't counted again.
+    await updateOrderStatus(actor, b, "in_production");
+    // Unpaid orders count only when asked.
+    await placeOrder(checkoutSchema.parse({ cart: [{ productId: product.id, optionValueIds: [values.small.id], quantity: 1 }], customerName: "Pat", customerEmail: "pat@example.test", fulfillmentMethod: "pickup", fulfillmentDate: futureDate(6) }));
+
+    const range = [futureDate(0), futureDate(10)] as const;
+    const f = await ingredientForecast(...range);
+    expect(f.orderCount).toBe(1);
+    expect(f.rows).toEqual([expect.objectContaining({ id: flour, needed: 800, onHand: 600, after: -200, short: 200, toBuy: 700 })]);
+    expect((await ingredientForecast(...range, { includePending: true })).rows[0]).toMatchObject({ needed: 1200, short: 600 });
+    expect((await ingredientForecast(futureDate(20), futureDate(30))).rows).toEqual([]);
+  });
+});
+
+describe("product sales report", () => {
+  it("reports units, revenue and estimated ingredient cost for confirmed, uncancelled orders", async () => {
+    const s = await configureShop();
+    const actor = await createAdmin();
+    const { product, values } = await createTestProduct();
+    const res = await saveIngredient(actor, null, { name: "Flour", unit: "g", supplierId: null, costPerUnitCents: 0.5, reorderLevel: null, notes: null, active: true });
+    if (!res.ok) throw new Error();
+    await saveRecipe(actor, product.id, { yieldQuantity: 1, notes: null, items: [{ ingredientId: res.id, quantity: 400 }] }); // 200¢ per cake
+    await db().update(schema.productOptionValues).set({ recipeScale: 1.5 }).where(eq(schema.productOptionValues.id, values.large.id));
+
+    await paidOrder(product.id, values.small.id, 2); // 2 × 4000
+    await paidOrder(product.id, values.large.id, 1); // 1 × 5500, cost 300
+    const cancelled = await paidOrder(product.id, values.small.id, 5);
+    await updateOrderStatus(actor, cancelled, "cancelled", { reason: "Changed plans" });
+    await placeOrder(checkoutSchema.parse({ cart: [{ productId: product.id, optionValueIds: [values.small.id], quantity: 1 }], customerName: "Pat", customerEmail: "pat@example.test", fulfillmentMethod: "pickup", fulfillmentDate: futureDate(6) })); // unpaid
+
+    const today = new Date().toISOString().slice(0, 10);
+    const report = await productSales(today, today, s);
+    expect(report.orders).toBe(2);
+    expect(report.products).toEqual([expect.objectContaining({ productId: product.id, orders: 2, units: 3, revenueCents: 13500, costCents: 700, marginCents: 12800 })]);
+    expect(report.daily).toEqual([{ date: today, revenueCents: 13500, orders: 2 }]);
   });
 });

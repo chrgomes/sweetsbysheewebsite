@@ -61,6 +61,13 @@ export default async function EditProduct({ params, searchParams }: PageProps<"/
                 <p className="mb-4 text-sm text-ink-soft">
                   Ingredient cost: <strong className="text-ink">{cost.cents === null ? "—" : formatMoney(cost.cents, product.currency)}</strong> each
                   {margin !== null && <> · margin at the base price <strong className="text-ink">{Math.round(margin * 100)}%</strong></>}
+                  {cost.cents !== null &&
+                    product.options.flatMap((o) => o.values.filter((v) => v.recipeScale !== 1).map((v) => ({ o, v }))).map(({ o, v }) => (
+                      <span key={v.id} className="block">
+                        {o.name} “{v.label}” (×{v.recipeScale}): {formatMoney(Math.round(cost.cents! * v.recipeScale), product.currency)}
+                        {product.basePriceCents !== null && <> · margin {Math.round((marginOf(product.basePriceCents + v.priceDeltaCents, Math.round(cost.cents! * v.recipeScale)) ?? 0) * 100)}%</>}
+                      </span>
+                    ))}
                   {cost.missing.length > 0 && <span className="block text-honey">{cost.missing.length} ingredient{cost.missing.length === 1 ? " has" : "s have"} no cost yet, so this is too low.</span>}
                 </p>
               )}

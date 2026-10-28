@@ -138,6 +138,12 @@ export default async function CalendarPage({ searchParams }: PageProps<"/admin/c
         </div>
       )}
 
+      {view !== "month" && can(admin.role, "inventory:view") && (
+        <p className="mt-6 text-sm">
+          <Link href={`/admin/inventory/forecast?from=${from}&to=${to}`} className="text-berry hover:underline">Ingredients needed for {view === "day" ? "this day" : "this week"} →</Link>
+        </p>
+      )}
+
       {view === "day" && can(admin.role, "capacity:override") && (
         <Panel title="Capacity for this day" className="mt-6 max-w-xl">
           <p className="mb-4 text-sm text-ink-soft">
