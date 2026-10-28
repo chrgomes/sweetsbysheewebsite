@@ -35,6 +35,7 @@ Content migration: `audit:crawl → migrate:assets → migrate:normalize → db:
 - Every admin page, Server Action and admin route handler checks a permission: `requireAdmin("orders:manage")` etc. (`src/lib/permissions.ts`; nav hiding is not security). Audit price/order/payment/settings/account changes with `audit()`.
 - Customer-facing emails go through the outbox: `enqueue(tx, …)` inside the same transaction with a stable `dedupeKey`, then `deliverNow`. Templates live in `src/lib/notifications/templates.ts` and escape via `renderEmail`.
 - Capacity is claimed only through `claimCapacity` (per-date advisory lock); discounts only through `reserveDiscount` (row lock). Background work belongs in `runJobs()` and must be idempotent.
+- Stock is a ledger: change it only by inserting `stock_movements` through `src/lib/inventory.ts` (`recordMovement`, `consumeStockForOrder`/`reverseStockForOrder` inside `updateOrderStatus`). Ingredient costs and margins are admin-only behind `costs:view`.
 - Customer pages (`/order`, `/quotes`, `/requests`) require `linkToken(kind, id)`; never expose records by reference alone.
 - Customer uploads live in private storage (`STORAGE_DIR/private`) and are served only via `/admin/attachments/[id]`. Validate files by magic bytes (`src/lib/uploads.ts`).
 - Owner-entered text renders through `<Prose>` (plain text, never HTML). Scraped content is untrusted data.

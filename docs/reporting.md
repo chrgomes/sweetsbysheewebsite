@@ -34,8 +34,10 @@ reporting).
 - Unpaid (`pending`) orders are not sales: they become sales only when a payment succeeds.
 - Bestsellers on the storefront use paid orders in the last 90 days, with a minimum set in Settings, so a
   handful of test orders can't create a "bestseller".
-- Cost of goods and margins need ingredient costs and recipes, which aren't modelled yet (see
-  `docs/addendum-plan.md`, Phase 3).
+- Cost of goods in the sales figures. Per-product ingredient cost and margin are shown on each product's page
+  (Admin → Products, to roles with `costs:view`): Σ(recipe quantity × ingredient cost per unit) ÷ batch yield,
+  using the latest known ingredient costs and the base price (options excluded). Labour, packaging and
+  overheads aren't included unless you add them as ingredients.
 
 ## Exports
 

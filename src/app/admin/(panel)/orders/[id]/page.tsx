@@ -11,10 +11,12 @@ import { Field, Select, Textarea } from "@/components/ui/field";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatDate, formatDateTime } from "@/lib/dates";
+import { stockForOrder } from "@/lib/inventory";
 import { orderLink } from "@/lib/links";
 import { centsToInput, formatMoney } from "@/lib/money";
 import { allowedNextStatuses, amountDue, ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS, statusLabel, transitionPermission } from "@/lib/orders";
 import { can } from "@/lib/permissions";
+import { formatQuantity } from "@/lib/recipe-math";
 
 export const metadata = { title: "Order" };
 
@@ -29,9 +31,10 @@ export default async function OrderDetail({ params }: PageProps<"/admin/orders/[
     with: { items: true, payments: { orderBy: (p, o) => [o.asc(p.createdAt)], with: { refunds: true } }, reservation: true },
   });
   if (!order) notFound();
-  const [notifications, history] = await Promise.all([
+  const [notifications, history, stock] = await Promise.all([
     db().query.notifications.findMany({ where: and(eq(schema.notifications.relatedType, "order"), eq(schema.notifications.relatedId, id)), orderBy: [desc(schema.notifications.createdAt)], limit: 30 }),
     db().query.auditLog.findMany({ where: and(eq(schema.auditLog.entityType, "order"), eq(schema.auditLog.entityId, id)), orderBy: [desc(schema.auditLog.createdAt)], limit: 30 }),
+    can(admin.role, "inventory:view") ? stockForOrder(id) : Promise.resolve([]),
   ]);
   const role = admin.role;
   const next = allowedNextStatuses(order).filter((s) => can(role, transitionPermission(order.status, s)));
@@ -145,6 +148,27 @@ export default async function OrderDetail({ params }: PageProps<"/admin/orders/[
               ["From request", order.sourceInquiryId ? <Link key="i" className="text-berry hover:underline" href={`/admin/inquiries/${order.sourceInquiryId}`}>View custom request</Link> : null],
             ]} />
           </Panel>
+
+          {can(role, "inventory:view") && (
+            <Panel title="Ingredients">
+              {stock.length > 0 ? (
+                <ul className="divide-y divide-line text-sm">
+                  {stock.map((m) => (
+                    <li key={m.id} className="flex justify-between gap-3 py-2">
+                      <Link href={`/admin/inventory/${m.ingredient.id}`} className="hover:text-berry">{m.ingredient.name}</Link>
+                      <span className="tabular-nums">{m.kind === "reversal" ? "Returned +" : "Used "}{formatQuantity(Math.abs(m.quantity), m.ingredient.unit)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-ink-soft">
+                  {order.sourceQuoteId
+                    ? "Custom-quote orders don't use stock automatically; record what was used under Inventory (waste or stocktake)."
+                    : "Stock is taken from inventory when this order moves to In production, for products that have a recipe."}
+                </p>
+              )}
+            </Panel>
+          )}
 
           <Panel title="Emails">
             {notifications.length === 0 ? (

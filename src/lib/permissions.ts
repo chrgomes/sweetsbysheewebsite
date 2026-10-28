@@ -17,9 +17,9 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   owner: "Everything, including team accounts.",
   admin: "Everything except managing team accounts.",
-  order_manager: "Orders, payments, custom requests, quotes, customers and the calendar.",
-  production: "View orders and the calendar; move orders through production.",
-  reporting: "View orders, requests, the calendar and reports; export data. No changes.",
+  order_manager: "Orders, payments, custom requests, quotes, customers and the calendar; can see stock.",
+  production: "View orders and the calendar; move orders through production; keep stock up to date.",
+  reporting: "View orders, requests, the calendar, stock, costs and reports; export data. No changes.",
 };
 
 export const PERMISSIONS = [
@@ -45,6 +45,12 @@ export const PERMISSIONS = [
   "customers:view",
   "customers:erase",
   "reports:view",
+  /** See ingredients, stock levels and recipes (not costs). */
+  "inventory:view",
+  /** Record deliveries, stocktakes and waste; edit ingredients, suppliers and recipes. */
+  "inventory:manage",
+  /** Ingredient costs, recipe costs and margins. */
+  "costs:view",
   "settings:edit",
   "users:manage",
   "audit:view",
@@ -71,8 +77,9 @@ const GRANTS: Record<Role, Set<Permission>> = {
     "calendar:view",
     "products:view",
     "customers:view",
+    "inventory:view",
   ]),
-  production: new Set<Permission>(["dashboard:view", "orders:view", "orders:progress", "inquiries:view", "calendar:view", "products:view"]),
+  production: new Set<Permission>(["dashboard:view", "orders:view", "orders:progress", "inquiries:view", "calendar:view", "products:view", "inventory:view", "inventory:manage"]),
   reporting: new Set<Permission>([
     "dashboard:view",
     "orders:view",
@@ -82,6 +89,8 @@ const GRANTS: Record<Role, Set<Permission>> = {
     "products:view",
     "customers:view",
     "reports:view",
+    "inventory:view",
+    "costs:view",
   ]),
 };
 

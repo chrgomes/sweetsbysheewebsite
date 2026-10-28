@@ -55,6 +55,23 @@ developer unless it says so.
 - **Collections**: create one (e.g. “Holiday treats”), optionally with dates and *On homepage*, then tick it on
   each product's page.
 
+## Inventory
+
+- **Ingredients** (Admin → Inventory): each one is counted in grams, millilitres or "each". Set *Warn when stock
+  is at or below* to get a low-stock alert on the dashboard. Costs are entered per kg, per L or each.
+- **Deliveries**: open the ingredient → *Delivery received*. Enter the amount and, if you know it, the total
+  paid; the cost per unit updates from it.
+- **Stocktake**: enter what you actually counted and why. The difference is recorded, so the history explains
+  every change.
+- **Waste**: amount and what happened (expired, dropped…).
+- **Recipes**: on each product's page, list the ingredients for one batch and how many the batch makes. When an
+  order moves to *In production*, its ingredients come off stock automatically; if it's cancelled after that,
+  they go back. Custom-quote orders don't do this — record what they used as waste or with a stocktake.
+- **Costs and margins** show only to the owner, administrators and read-only/reporting accounts. Production
+  staff can record stock but don't see what things cost.
+- **Suppliers**: keep contact details and notes (order days, minimums) under Suppliers, and pick the supplier
+  on each ingredient.
+
 ## Customers and privacy
 
 - Customers are created automatically from orders and requests (there are no customer passwords). Customers
@@ -73,8 +90,8 @@ Owners manage people in **Team**. Give each person their own account and the lea
 | Owner | Everything, including team accounts |
 | Administrator | Everything except team accounts |
 | Order manager | Orders, payments (not refunds), requests, quotes, customers, calendar, exports |
-| Production staff | See orders and the calendar; move orders through production |
-| Read-only / reporting | See orders, requests, calendar and sales figures; export |
+| Production staff | See orders and the calendar; move orders through production; record deliveries, stocktakes and waste (no costs) |
+| Read-only / reporting | See orders, requests, calendar, stock, costs and sales figures; export |
 
 When someone leaves, untick *Active* (keeps the account, signs them out everywhere) or **Delete** it
 (permanent; their past actions stay in the activity log). You can't delete your own account or the last

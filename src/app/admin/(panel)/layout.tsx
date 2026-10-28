@@ -20,6 +20,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/products", label: "Products", permission: "products:view" },
     { href: "/admin/collections", label: "Collections", permission: "products:edit" },
     { href: "/admin/categories", label: "Categories", permission: "products:view" },
+    { href: "/admin/inventory", label: "Inventory", permission: "inventory:view" },
+    { href: "/admin/suppliers", label: "Suppliers", permission: "inventory:view" },
     { href: "/admin/discounts", label: "Discount codes", permission: "discounts:manage" },
     { href: "/admin/content", label: "Site content", permission: "content:edit" },
     { href: "/admin/settings", label: "Settings", permission: "settings:edit" },

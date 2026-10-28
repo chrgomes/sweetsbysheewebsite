@@ -5,6 +5,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   primaryKey,
@@ -720,6 +721,96 @@ export const rateLimits = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* Inventory and recipe costing                                        */
+/* ------------------------------------------------------------------ */
+
+/** Every ingredient is counted in one base unit; quantities are numeric(14,3) in that unit. */
+export const baseUnit = pgEnum("base_unit", ["g", "ml", "each"]);
+export const stockMovementKind = pgEnum("stock_movement_kind", ["receipt", "usage", "reversal", "adjustment", "waste"]);
+
+export const suppliers = pgTable("suppliers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  website: text("website"),
+  notes: text("notes"),
+  active: boolean("active").notNull().default(true),
+  ...timestamps,
+});
+
+export const ingredients = pgTable("ingredients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull().unique(),
+  unit: baseUnit("unit").notNull(),
+  supplierId: uuid("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
+  /** Latest known cost in cents per base unit (fractions allowed, e.g. 0.25¢/g). Null = unknown. */
+  costPerUnitCents: numeric("cost_per_unit_cents", { precision: 14, scale: 6, mode: "number" }),
+  /** Warn when stock on hand falls to or below this. Null = no warning. */
+  reorderLevel: numeric("reorder_level", { precision: 14, scale: 3, mode: "number" }),
+  active: boolean("active").notNull().default(true),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+/**
+ * The stock ledger. Stock on hand is the sum of `quantity` (signed, base
+ * units). Usage and reversal rows reference the order that caused them; the
+ * unique index makes consumption idempotent per order and ingredient.
+ */
+export const stockMovements = pgTable(
+  "stock_movements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "restrict" }),
+    kind: stockMovementKind("kind").notNull(),
+    quantity: numeric("quantity", { precision: 14, scale: 3, mode: "number" }).notNull(),
+    /** Cost per base unit at the time (receipts: what was paid; usage: the cost then). */
+    unitCostCents: numeric("unit_cost_cents", { precision: 14, scale: 6, mode: "number" }),
+    orderId: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    note: text("note"),
+    createdBy: uuid("created_by").references(() => adminUsers.id, { onDelete: "set null" }),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [
+    index("stock_movements_ingredient_idx").on(t.ingredientId, t.createdAt),
+    uniqueIndex("stock_movements_order_idx").on(t.orderId, t.ingredientId, t.kind),
+  ],
+);
+
+/** One recipe per product. `yieldQuantity` is how many of the product one batch makes. */
+export const recipes = pgTable("recipes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  productId: uuid("product_id")
+    .notNull()
+    .unique()
+    .references(() => products.id, { onDelete: "cascade" }),
+  yieldQuantity: numeric("yield_quantity", { precision: 10, scale: 3, mode: "number" }).notNull().default(1),
+  notes: text("notes"),
+  ...timestamps,
+});
+
+export const recipeItems = pgTable(
+  "recipe_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    recipeId: uuid("recipe_id")
+      .notNull()
+      .references(() => recipes.id, { onDelete: "cascade" }),
+    ingredientId: uuid("ingredient_id")
+      .notNull()
+      .references(() => ingredients.id, { onDelete: "restrict" }),
+    /** Base units per batch. */
+    quantity: numeric("quantity", { precision: 14, scale: 3, mode: "number" }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [uniqueIndex("recipe_items_recipe_ingredient_idx").on(t.recipeId, t.ingredientId)],
+);
+
+/* ------------------------------------------------------------------ */
 /* Relations                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -730,6 +821,30 @@ export const productsRelations = relations(products, ({ one, many }) => ({
   images: many(productImages),
   options: many(productOptions),
   collections: many(productCollections),
+  recipe: one(recipes, { fields: [products.id], references: [recipes.productId] }),
+}));
+
+export const suppliersRelations = relations(suppliers, ({ many }) => ({ ingredients: many(ingredients) }));
+
+export const ingredientsRelations = relations(ingredients, ({ one, many }) => ({
+  supplier: one(suppliers, { fields: [ingredients.supplierId], references: [suppliers.id] }),
+  movements: many(stockMovements),
+  recipeItems: many(recipeItems),
+}));
+
+export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
+  ingredient: one(ingredients, { fields: [stockMovements.ingredientId], references: [ingredients.id] }),
+  order: one(orders, { fields: [stockMovements.orderId], references: [orders.id] }),
+}));
+
+export const recipesRelations = relations(recipes, ({ one, many }) => ({
+  product: one(products, { fields: [recipes.productId], references: [products.id] }),
+  items: many(recipeItems),
+}));
+
+export const recipeItemsRelations = relations(recipeItems, ({ one }) => ({
+  recipe: one(recipes, { fields: [recipeItems.recipeId], references: [recipes.id] }),
+  ingredient: one(ingredients, { fields: [recipeItems.ingredientId], references: [ingredients.id] }),
 }));
 
 export const collectionsRelations = relations(collections, ({ many }) => ({ products: many(productCollections) }));

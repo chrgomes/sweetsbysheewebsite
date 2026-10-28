@@ -4,17 +4,22 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { saveOptions, updateProductImage, uploadProductImage } from "@/app/admin/actions/products";
 import { AdminForm } from "@/components/admin/admin-form";
+import { RecipeEditor } from "@/components/admin/inventory-forms";
 import { OptionsEditor } from "@/components/admin/options-editor";
 import { ProductForm } from "@/components/admin/product-form";
 import { AdminHeader, Panel } from "@/components/admin/ui";
 import { FormAlert, Input } from "@/components/ui/field";
 import { db, schema } from "@/db";
 import { requireAdmin } from "@/lib/auth/session";
+import { getRecipe, listIngredients, productCosts } from "@/lib/inventory";
+import { formatMoney } from "@/lib/money";
+import { can } from "@/lib/permissions";
+import { formatQuantity, marginOf } from "@/lib/recipe-math";
 
 export const metadata = { title: "Edit product" };
 
 export default async function EditProduct({ params, searchParams }: PageProps<"/admin/products/[id]">) {
-  await requireAdmin("products:view");
+  const admin = await requireAdmin("products:view");
   const { id } = await params;
   const sp = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
@@ -28,6 +33,12 @@ export default async function EditProduct({ params, searchParams }: PageProps<"/
     db().query.productCollections.findMany({ where: eq(schema.productCollections.productId, id) }),
   ]);
   if (!product) notFound();
+  const showRecipe = can(admin.role, "inventory:view") || can(admin.role, "products:edit");
+  const [recipe, ingredientList, costs] = showRecipe
+    ? await Promise.all([getRecipe(product.id), listIngredients(), productCosts([product.id])])
+    : [undefined, [], new Map()];
+  const cost = costs.get(product.id);
+  const margin = cost ? marginOf(product.basePriceCents, cost.cents) : null;
   return (
     <>
       <AdminHeader
@@ -44,6 +55,35 @@ export default async function EditProduct({ params, searchParams }: PageProps<"/
       <div className="grid gap-6 2xl:grid-cols-5">
         <Panel title="Details" className="2xl:col-span-3"><ProductForm product={product} categories={categories} collections={collections} memberOf={memberships.map((m) => m.collectionId)} /></Panel>
         <div className="space-y-6 2xl:col-span-2">
+          {showRecipe && (
+            <Panel title="Recipe">
+              {can(admin.role, "costs:view") && cost && (
+                <p className="mb-4 text-sm text-ink-soft">
+                  Ingredient cost: <strong className="text-ink">{cost.cents === null ? "—" : formatMoney(cost.cents, product.currency)}</strong> each
+                  {margin !== null && <> · margin at the base price <strong className="text-ink">{Math.round(margin * 100)}%</strong></>}
+                  {cost.missing.length > 0 && <span className="block text-honey">{cost.missing.length} ingredient{cost.missing.length === 1 ? " has" : "s have"} no cost yet, so this is too low.</span>}
+                </p>
+              )}
+              {can(admin.role, "products:edit") ? (
+                <RecipeEditor
+                  productId={product.id}
+                  ingredients={ingredientList.map((i) => ({ id: i.id, name: i.name, unit: i.unit }))}
+                  initial={{
+                    yieldQuantity: recipe?.yieldQuantity.toString() ?? "1",
+                    notes: recipe?.notes ?? "",
+                    items: recipe?.items.map((i) => ({ ingredientId: i.ingredientId, quantity: i.quantity.toString() })) ?? [],
+                  }}
+                />
+              ) : recipe ? (
+                <ul className="space-y-1 text-sm">
+                  <li className="text-ink-muted">One batch makes {recipe.yieldQuantity}</li>
+                  {recipe.items.map((i) => <li key={i.id}>{formatQuantity(i.quantity, i.ingredient.unit)} {i.ingredient.name}</li>)}
+                </ul>
+              ) : (
+                <p className="text-sm text-ink-soft">No recipe yet.</p>
+              )}
+            </Panel>
+          )}
           <Panel title="Options & prices">
             <AdminForm action={saveOptions} submitLabel="Save options">
               <input type="hidden" name="productId" value={product.id} />

@@ -138,6 +138,46 @@ test("owner adds and deletes a team member", async ({ page }) => {
   await expect(page.getByText("admin.user_deleted").first()).toBeVisible();
 });
 
+test("inventory: ingredients, deliveries, stocktake, waste and recipe costs", async ({ page }) => {
+  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Inventory" }).click();
+  await expect(page.getByRole("link", { name: "Sample flour" })).toBeVisible();
+  await page.getByLabel("Name").fill("E2E vanilla");
+  await page.getByLabel("Counted in").selectOption("ml");
+  await page.getByLabel("Cost per L ($)").fill("abc");
+  await page.getByRole("button", { name: "Add ingredient" }).click();
+  await expect(page.getByText("Enter an amount like 2.50.")).toBeVisible();
+  await page.getByLabel("Cost per L ($)").fill("40");
+  await page.getByRole("button", { name: "Add ingredient" }).click();
+  await expect(page.getByText("Ingredient added.")).toBeVisible();
+
+  await page.getByLabel("Amount (ml)").first().fill("500");
+  await page.getByLabel("Total paid ($)").fill("25");
+  await page.getByRole("button", { name: "Add to stock" }).click();
+  await expect(page.getByText("Delivery recorded.")).toBeVisible();
+  await expect(page.getByText("500 ml").first()).toBeVisible();
+  await expect(page.getByText("$50.00 per L")).toBeVisible(); // cost updated from the delivery
+  await expect(page.getByLabel("Cost per L ($)")).toHaveValue("50.00"); // and the edit form shows it
+
+  await page.getByLabel("Counted (ml)").fill("480");
+  await page.getByRole("button", { name: "Set stock to this count" }).click();
+  await expect(page.locator("#cnt-note-error")).toBeVisible();
+  await page.getByLabel("Reason").fill("Weekly count");
+  await page.getByRole("button", { name: "Set stock to this count" }).click();
+  await expect(page.getByText("Stock count updated.")).toBeVisible();
+  await page.getByLabel("Amount (ml)").nth(1).fill("30");
+  await page.getByLabel("What happened").fill("Spilled");
+  await page.getByRole("button", { name: "Record waste" }).click();
+  await expect(page.getByText("Waste recorded.")).toBeVisible();
+  await expect(page.getByText("450 ml").first()).toBeVisible();
+  await page.screenshot({ path: `${SHOTS}/admin-ingredient.png`, fullPage: true });
+
+  // Sample recipe: 300 g flour × 0.2¢ + 250 g sugar × 0.25¢ + 200 g butter × 1.2¢ + 4 eggs × 30¢ = $4.83
+  await page.goto("/admin/products");
+  await page.getByRole("link", { name: "Sample Celebration Cake" }).click();
+  await expect(page.getByText("Ingredient cost: $4.83 each")).toBeVisible();
+  await expect(page.getByText(/margin at the base price 89%/)).toBeVisible();
+});
+
 test("production staff can progress orders but not reach owner areas", async ({ browser }) => {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
@@ -152,6 +192,15 @@ test("production staff can progress orders but not reach owner areas", async ({ 
     await expect(page).toHaveURL(/\/admin\?denied=1$/);
   }
   await expect(page.getByText("Your role doesn't include access to that page.")).toBeVisible();
+  // Production keeps stock up to date but doesn't see costs.
+  await nav.getByRole("link", { name: "Inventory" }).click();
+  await expect(page.getByRole("columnheader", { name: "Cost" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Sample eggs" }).click();
+  await expect(page.getByLabel("Total paid ($)")).toHaveCount(0);
+  await page.getByLabel("Amount (each)").nth(1).fill("2");
+  await page.getByLabel("What happened").fill("Cracked");
+  await page.getByRole("button", { name: "Record waste" }).click();
+  await expect(page.getByText("Waste recorded.")).toBeVisible();
   // Exports carry customer data and aren't available to production staff.
   expect((await page.request.get("/admin/orders-export")).status()).toBe(404);
   await ctx.close();

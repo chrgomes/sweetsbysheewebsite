@@ -9,6 +9,7 @@ import { upsertCustomer } from "@/lib/customers";
 import { addDays, checkFulfillmentDate, dateInZone, earliestFulfillmentDate, formatDate, type FulfillmentRules } from "@/lib/dates";
 import { checkDiscount, confirmRedemption, reserveDiscount, voidRedemption } from "@/lib/discounts";
 import { siteUrl } from "@/lib/env";
+import { consumeStockForOrder, reverseStockForOrder } from "@/lib/inventory";
 import { linkToken, orderLink, verifyLinkToken } from "@/lib/links";
 import { log } from "@/lib/log";
 import { businessRecipient, deliverNow, enqueue } from "@/lib/notifications";
@@ -713,7 +714,9 @@ export async function updateOrderStatus(actor: Actor, orderId: string, next: Ord
     if (next === "cancelled") {
       await releaseCapacity(tx, orderId);
       await voidRedemption(tx, orderId);
+      await reverseStockForOrder(tx, orderId);
     }
+    if (next === "in_production") await consumeStockForOrder(tx, orderId);
     if (updated.sourceInquiryId && (next === "completed" || next === "cancelled")) {
       await tx.update(schema.inquiries).set({ status: next }).where(eq(schema.inquiries.id, updated.sourceInquiryId));
     }
