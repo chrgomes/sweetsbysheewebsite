@@ -1,6 +1,7 @@
 // Run background jobs once, for hosts that schedule commands rather than HTTP
 // calls, e.g. a crontab entry running `pnpm jobs:run` every 5 minutes.
 // Uses the same code as POST /api/cron.
+import "../lib/load-env";
 import { closeDb } from "../../src/db";
 import { runJobs } from "../../src/lib/jobs";
 
