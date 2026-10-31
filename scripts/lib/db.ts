@@ -1,4 +1,5 @@
 /** Database handle for CLI scripts (outside the Next.js runtime). */
+import "./load-env";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../../src/db/schema";
